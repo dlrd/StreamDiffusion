@@ -1,1 +1,1 @@
-from .pipeline import StreamDiffusion
+from src.streamdiffusion.pipeline import StreamDiffusion

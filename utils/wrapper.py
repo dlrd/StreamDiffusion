@@ -9,8 +9,8 @@ import torch
 from diffusers import AutoencoderTiny, StableDiffusionPipeline
 from PIL import Image
 
-from streamdiffusion import StreamDiffusion
-from streamdiffusion.image_utils import postprocess_image
+from SmodePipeline import StreamDiffusion
+from src.streamdiffusion.image_utils import postprocess_image
 
 
 torch.set_grad_enabled(False)
@@ -172,6 +172,15 @@ class StreamDiffusionWrapper:
 
         if enable_similar_image_filter:
             self.stream.enable_similar_image_filter(similar_image_filter_threshold, similar_image_filter_max_skip_frame)
+
+    def recreate_pipe(self):
+        if not self.sd_turbo:
+            self.stream.load_lcm_lora()
+            self.stream.fuse_lora()
+
+        self.stream.vae = AutoencoderTiny.from_pretrained("madebyollin/taesd").to(
+            device=self.stream.pipe.device, dtype=self.stream.pipe.dtype
+        )
 
     def prepare(
         self,
@@ -343,9 +352,9 @@ class StreamDiffusionWrapper:
             The postprocessed image.
         """
         if self.frame_buffer_size > 1:
-            return postprocess_image(image_tensor.cpu(), output_type=output_type)
+            return postprocess_image(image_tensor, output_type=output_type)
         else:
-            return postprocess_image(image_tensor.cpu(), output_type=output_type)[0]
+            return postprocess_image(image_tensor, output_type=output_type)[0]
 
     def _load_model(
         self,
@@ -414,13 +423,17 @@ class StreamDiffusionWrapper:
         """
 
         try:  # Load from local directory
-            pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
-                model_id_or_path,
-            ).to(device=self.device, dtype=self.dtype)
-
+            try:
+                pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
+                    model_id_or_path
+                ).to(device=self.device, dtype=self.dtype)
+            except Exception:
+                pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
+                    model_id_or_path, local_files_only=True
+                ).to(device=self.device, dtype=self.dtype)
         except ValueError:  # Load from huggingface
             pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_single_file(
-                model_id_or_path,
+                model_id_or_path, 
             ).to(device=self.device, dtype=self.dtype)
         except Exception:  # No model found
             traceback.print_exc()

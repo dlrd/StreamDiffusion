@@ -1,0 +1,14 @@
+--extra-index-url https://download.pytorch.org/whl/cu126
+setuptools==57.4.0
+huggingface-hub==0.25.2
+torch==2.7.0
+accelerate
+diffusers
+onnxruntime
+safetensors
+torchvision
+transformers
+xformers
+fire
+polygraphy==0.47.1
+onnx-graphsurgeon==0.3.26

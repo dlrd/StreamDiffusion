@@ -10,7 +10,7 @@ from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_img2img impo
     retrieve_latents,
 )
 
-from streamdiffusion.image_filter import SimilarImageFilter
+#from src.streamdiffusion.image_filter import SimilarImageFilter
 
 
 class StreamDiffusion:
@@ -63,7 +63,7 @@ class StreamDiffusion:
         self.use_denoising_batch = use_denoising_batch
 
         self.similar_image_filter = False
-        self.similar_filter = SimilarImageFilter()
+        #self.similar_filter = SimilarImageFilter()
         self.prev_image_result = None
 
         self.pipe = pipe
