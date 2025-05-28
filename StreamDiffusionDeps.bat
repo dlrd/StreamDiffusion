@@ -18,12 +18,9 @@ REM Install required packages
 
 echo Installing requirements...
 
-pip.exe install setuptools==57.4.0 wheel
-pip.exe install torch torchvision --index-url https://download.pytorch.org/whl/cu%1
-pip.exe install -r requirements.txt
-pip.exe install --upgrade tensorrt-cu12
-
-REM Fix potential issues with Windows compatibility
-python.exe -m pip install --force-reinstall pywin32
+pip install setuptools==57.4.0 wheel
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu%1
+pip install -r requirements.txt
+pip install --upgrade tensorrt-cu12
 
 echo Install done
