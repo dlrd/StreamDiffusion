@@ -9,7 +9,7 @@ import torch
 from diffusers import AutoencoderTiny, StableDiffusionPipeline
 from PIL import Image
 
-from SmodePipeline import StreamDiffusion
+from src.streamdiffusion import StreamDiffusion
 from src.streamdiffusion.image_utils import postprocess_image
 
 
@@ -482,17 +482,17 @@ class StreamDiffusionWrapper:
                 stream.pipe.enable_xformers_memory_efficient_attention()
             if acceleration == "tensorrt":
                 from polygraphy import cuda
-                from streamdiffusion.acceleration.tensorrt import (
+                from src.streamdiffusion.acceleration.tensorrt import (
                     TorchVAEEncoder,
                     compile_unet,
                     compile_vae_decoder,
                     compile_vae_encoder,
                 )
-                from streamdiffusion.acceleration.tensorrt.engine import (
+                from src.streamdiffusion.acceleration.tensorrt.engine import (
                     AutoencoderKLEngine,
                     UNet2DConditionModelEngine,
                 )
-                from streamdiffusion.acceleration.tensorrt.models import (
+                from src.streamdiffusion.acceleration.tensorrt.models import (
                     VAE,
                     UNet,
                     VAEEncoder,

@@ -11,7 +11,7 @@ from torch.multiprocessing import reductions  # For obtaining CUDA IPC handle
 import torchvision.transforms.functional as F
 
 from utils.wrapper import StreamDiffusionWrapper
-from SmodePipeline import StreamDiffusion
+from src.streamdiffusion import StreamDiffusion
 from diffusers import AutoencoderTiny
 
 # Protocol constants
@@ -281,7 +281,7 @@ class App:
             width=self.width,
             height=self.height,
             warmup=10,
-            acceleration="xformers",
+            acceleration="tensorrt",
             device_ids=None,
             use_lcm_lora=True,
             use_tiny_vae=True,
@@ -447,12 +447,16 @@ class App:
                                                     use_denoising_batch=self.stream.stream.use_denoising_batch,
                                                     cfg_type=config_packet.cfg_type,
                                                 )
-                            # self.stream.stream.pipe.enable_xformers_memory_efficient_attention()
-                            from src.streamdiffusion.acceleration.tensorrt import accelerate_with_tensorrt
-                            stream = accelerate_with_tensorrt(
-                                stream, "engines", max_batch_size=2,
-                            )
-                            self.stream.recreate_pipe()
+
+                            try:
+                                from src.streamdiffusion.acceleration.tensorrt import accelerate_with_tensorrt
+                                self.stream.stream = accelerate_with_tensorrt(
+                                    self.stream.stream, "engines", max_batch_size=2,
+                                )
+                            except ImportError:
+                                logging.warning("TensorRT acceleration not available; continuing with xformers")
+                                # self.stream.stream.pipe.enable_xformers_memory_efficient_attention()
+                                # self.stream.recreate_pipe()
 
                         if update_stream:
                             self._create_stream()

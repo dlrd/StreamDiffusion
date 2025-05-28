@@ -21,6 +21,6 @@ echo Installing requirements...
 pip install setuptools==57.4.0 wheel
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu%1
 pip install -r requirements.txt
-pip install --upgrade tensorrt-cu12
+pip install --upgrade tensorrt-cu12 cuda-python
 
 echo Install done
