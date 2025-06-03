@@ -1,7 +1,7 @@
 REM Create a virtual environment
 if not exist .venv (
     echo Creating virtual environment...
-    call "%CD%\..\python-3_10_11\python.exe" -m virtualenv --copies .venv
+    call "%CD%\..\python-3_11_9\python.exe" -m virtualenv --copies .venv
 ) else (
     echo Virtual environment already exists.
 )
