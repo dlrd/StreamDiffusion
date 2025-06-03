@@ -23,7 +23,7 @@ pip.exe install -r requirements.txt
 
 
 REM For TensorRT
-pip install --index-url https://pypi.nvidia.com tensorrt==9.0.1.post11.dev4
+pip install --index-url https://pypi.nvidia.com tensorrt==9.0.1.post11.dev4 --no-build-isolation
 pip install polygraphy==0.47.1 --index-url https://pypi.ngc.nvidia.com
 pip install onnx-graphsurgeon==0.3.26 --extra-index-url https://pypi.ngc.nvidia.com
 pip install --force-reinstall pywin32
