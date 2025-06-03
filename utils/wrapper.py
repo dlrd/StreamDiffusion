@@ -482,7 +482,7 @@ class StreamDiffusionWrapper:
             if acceleration == "tensorrt":
                 self.enable_tensorrt_acceleration(stream, model_id_or_path, use_lcm_lora, use_tiny_vae)
             if acceleration == "sfast":
-                from streamdiffusion.acceleration.sfast import (
+                from src.streamdiffusion.acceleration.sfast import (
                     accelerate_with_stable_fast,
                 )
                 stream = accelerate_with_stable_fast(stream)
@@ -523,17 +523,17 @@ class StreamDiffusionWrapper:
 
     def enable_tensorrt_acceleration(self, stream: StreamDiffusion, model_id_or_path: str, use_lcm_lora: bool, use_tiny_vae: bool):
         from polygraphy import cuda
-        from streamdiffusion.acceleration.tensorrt import (
+        from src.streamdiffusion.acceleration.tensorrt import (
             TorchVAEEncoder,
             compile_unet,
             compile_vae_decoder,
             compile_vae_encoder,
         )
-        from streamdiffusion.acceleration.tensorrt.engine import (
+        from src.streamdiffusion.acceleration.tensorrt.engine import (
             AutoencoderKLEngine,
             UNet2DConditionModelEngine,
         )
-        from streamdiffusion.acceleration.tensorrt.models import (
+        from src.streamdiffusion.acceleration.tensorrt.models import (
             VAE,
             UNet,
             VAEEncoder,
