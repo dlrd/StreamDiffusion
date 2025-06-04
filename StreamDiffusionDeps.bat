@@ -17,15 +17,14 @@ REM Install required packages
 
 echo Installing requirements...
 
-pip.exe install setuptools==57.4.0
-pip.exe install torch torchvision --index-url https://download.pytorch.org/whl/cu%1
+pip.exe install setuptools wheel
+pip.exe install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 pip.exe install -r requirements.txt
+pip.exe install cuda-python
 
 
 REM For TensorRT
-pip install --index-url https://pypi.nvidia.com tensorrt==9.0.1.post11.dev4 --no-build-isolation
-pip install polygraphy==0.47.1 --index-url https://pypi.ngc.nvidia.com
-pip install onnx-graphsurgeon==0.3.26 --extra-index-url https://pypi.ngc.nvidia.com
+pip install torch-tensorrt==2.7.0
 pip install --force-reinstall pywin32
 
 echo Install done

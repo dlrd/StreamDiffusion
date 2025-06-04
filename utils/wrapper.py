@@ -521,7 +521,7 @@ class StreamDiffusionWrapper:
 
         return stream
 
-    def enable_tensorrt_acceleration(self, stream: StreamDiffusion, model_id_or_path: str, use_lcm_lora: bool, use_tiny_vae: bool):
+    def enable_tensorrt_acceleration(self, stream: StreamDiffusion, model_id_or_path: str, use_lcm_lora: bool, use_tiny_vae: bool, engine_dir: Optional[Union[str, Path]] = "engines"):
         from polygraphy import cuda
         from src.streamdiffusion.acceleration.tensorrt import (
             TorchVAEEncoder,
