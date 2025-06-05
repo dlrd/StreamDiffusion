@@ -22,9 +22,4 @@ pip.exe install torch torchvision --index-url https://download.pytorch.org/whl/c
 pip.exe install -r requirements.txt
 pip.exe install cuda-python
 
-
-REM For TensorRT
-pip install torch-tensorrt==2.7.0
-pip install --force-reinstall pywin32
-
 echo Install done
