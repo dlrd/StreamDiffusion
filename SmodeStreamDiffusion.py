@@ -40,8 +40,9 @@ class Mode(enum.IntEnum):
     TEXT_TO_IMAGE = 2
 
 class Acceleration(enum.IntEnum):
-    XFORMERS = 0
-    TENSORRT = 1
+    NONE = 0
+    XFORMERS = 1
+    TENSORRT = 2
 
 class ConfigType(enum.IntEnum):
     NONE = 1
@@ -283,7 +284,7 @@ class App:
             width=self.width,
             height=self.height,
             warmup=10,
-            acceleration="xformers" if self.acceleration == Acceleration.XFORMERS else "tensorrt",
+            acceleration="xformers" if self.acceleration == Acceleration.XFORMERS else "tensorrt" if self.acceleration == Acceleration.TENSORRT else "none",
             device_ids=None,
             use_lcm_lora=True,
             use_tiny_vae=True,
@@ -464,9 +465,6 @@ class App:
                                     logging.warning("TensorRT acceleration not available; continuing with xformers")
                                     self.stream.stream.pipe.enable_xformers_memory_efficient_attention()
                                     self.stream.recreate_pipe()
-                            else:
-                                logging.error(f"Unknown acceleration type: {self.acceleration}")
-                                continue
 
                         if update_stream:
                             self._create_stream()
