@@ -39,6 +39,10 @@ class Mode(enum.IntEnum):
     IMAGE_TO_IMAGE = 1
     TEXT_TO_IMAGE = 2
 
+class Acceleration(enum.IntEnum):
+    XFORMERS = 0
+    TENSORRT = 1
+
 class ConfigType(enum.IntEnum):
     NONE = 1
     FULL = 2
@@ -79,7 +83,6 @@ class Packet:
                              UINT32, MAGIC_NUMBER, size)
         return header + payload_bytes
 
-
 class FrameDataPacket(Packet):
     def __init__(self, cmd: CommandType, device: int, handle: bytes, event_handle: bytes, storage_size_bytes: int, storage_offset_bytes: int, channels: int, w: int, h: int):
         payload = struct.pack(ENDIAN_FORMAT + UINT64, device)
@@ -104,6 +107,7 @@ class ConfigPacket(Packet):
         self.guidance_scale = 5.0
         self.mode = Mode.IMAGE_TO_IMAGE
         self.cfg_type = "none"
+        self.acceleration = Acceleration.XFORMERS
 
     def from_bytes(self, data: bytes):
         offset = 0
@@ -127,7 +131,7 @@ class ConfigPacket(Packet):
             self.t_index_list.append(t_index_list)
             offset += 4
         cfg_type = ConfigType.NONE
-        self.guidance_scale, self.mode, cfg_type = struct.unpack_from(ENDIAN_FORMAT + FLOAT32 + UINT32 + UINT32, data, offset)
+        self.guidance_scale, self.mode, cfg_type, self.acceleration = struct.unpack_from(ENDIAN_FORMAT + FLOAT32 + UINT32 + UINT32 + UINT32, data, offset)
         self.cfg_type = config_type_to_str(cfg_type)
         return self
 
@@ -172,9 +176,6 @@ class StreamDiffusionSmodeTexture:
         # Ensure x_output matches smode layout: float32 on the correct device
         src = x_output.to(dtype=torch.float32, device=self.device)
         self.smode_tensor.copy_(src)
-
-        # Refresh IPC info after modifying smode_tensor
-        self.smode_tensor_ipc_info = reductions.reduce_tensor(self.smode_tensor)[1]
 
 def recv_all(sock: socket.socket, n: int) -> bytes:
     """Receive exactly n bytes from the socket."""
@@ -267,6 +268,7 @@ class App:
         self.buffer_shape = None
         self.t_index_list = [16]
         self.mode = Mode.IMAGE_TO_IMAGE
+        self.acceleration = Acceleration.XFORMERS
         self._init_connection()
         self._create_stream()
 
@@ -281,7 +283,7 @@ class App:
             width=self.width,
             height=self.height,
             warmup=10,
-            acceleration="tensorrt",
+            acceleration="xformers" if self.acceleration == Acceleration.XFORMERS else "tensorrt",
             device_ids=None,
             use_lcm_lora=True,
             use_tiny_vae=True,
@@ -369,6 +371,7 @@ class App:
                 # Process received messages
                 for cmd, payload in messages.items():
                     if cmd == CommandType.START:
+                        compute_time = time.time()
                         if self.output_tensors is None:
                             self._create_tensors(3, self.width, self.height)
 
@@ -417,12 +420,13 @@ class App:
 
                         packet = FrameDataPacket(CommandType.FINISHED, device, handle[2:], event_handle, storage_size_bytes, storage_offset_bytes, channels, h, w)
                         send_message(self.socket, packet)
+                        logging.info(f"{(time.time() - compute_time) * 1000} ms")
 
                     elif cmd == CommandType.CONFIG:
                         config_packet = ConfigPacket()
                         config_packet.from_bytes(payload)
                         logging.info(f"Received CONFIG command: {vars(config_packet)}")
-                        update_stream = self.model_name != config_packet.model_name or self.width != config_packet.width or self.height != config_packet.height or self.mode != config_packet.mode or self.stream.stream.cfg_type != config_packet.cfg_type
+                        update_stream = self.model_name != config_packet.model_name or self.width != config_packet.width or self.height != config_packet.height or self.mode != config_packet.mode or self.stream.stream.cfg_type != config_packet.cfg_type or self.acceleration != config_packet.acceleration
                         update_t_index_list = self.t_index_list != config_packet.t_index_list
                         self.model_name = config_packet.model_name
                         self.current_prompt = config_packet.prompt
@@ -433,7 +437,7 @@ class App:
                         self.t_index_list = config_packet.t_index_list
                         self.mode = config_packet.mode
                         self.stream.mode = "img2img" if self.mode == Mode.IMAGE_TO_IMAGE else "txt2img"
-
+                        self.acceleration = config_packet.acceleration
 
                         if update_stream or update_t_index_list:
                             self.stream.stream = StreamDiffusion(
@@ -447,16 +451,22 @@ class App:
                                                     use_denoising_batch=self.stream.stream.use_denoising_batch,
                                                     cfg_type=config_packet.cfg_type,
                                                 )
-
-                            try:
-                                from src.streamdiffusion.acceleration.tensorrt import accelerate_with_tensorrt
-                                self.stream.stream = accelerate_with_tensorrt(
-                                    self.stream.stream, "engines", max_batch_size=2,
-                                )
-                            except ImportError:
-                                logging.warning("TensorRT acceleration not available; continuing with xformers")
-                                # self.stream.stream.pipe.enable_xformers_memory_efficient_attention()
-                                # self.stream.recreate_pipe()
+                            if self.acceleration == Acceleration.XFORMERS:
+                                self.stream.stream.pipe.enable_xformers_memory_efficient_attention()
+                                self.stream.recreate_pipe()
+                            elif self.acceleration == Acceleration.TENSORRT:
+                                try:
+                                    from src.streamdiffusion.acceleration.tensorrt import accelerate_with_tensorrt
+                                    self.stream.stream = accelerate_with_tensorrt(
+                                        self.stream.stream, "engines", max_batch_size=2,
+                                    )
+                                except ImportError:
+                                    logging.warning("TensorRT acceleration not available; continuing with xformers")
+                                    self.stream.stream.pipe.enable_xformers_memory_efficient_attention()
+                                    self.stream.recreate_pipe()
+                            else:
+                                logging.error(f"Unknown acceleration type: {self.acceleration}")
+                                continue
 
                         if update_stream:
                             self._create_stream()
