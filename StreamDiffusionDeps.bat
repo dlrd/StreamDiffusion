@@ -18,7 +18,7 @@ REM Install required packages
 echo Installing requirements...
 
 pip.exe install setuptools wheel
-pip.exe install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+pip.exe install torch torchvision xformers --index-url https://download.pytorch.org/whl/cu128
 pip.exe install -r requirements.txt
 pip.exe install cuda-python
 
