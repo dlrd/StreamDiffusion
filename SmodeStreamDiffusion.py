@@ -270,8 +270,8 @@ class App:
         self.t_index_list = [16]
         self.mode = Mode.IMAGE_TO_IMAGE
         self.acceleration = Acceleration.XFORMERS
+        self.stream = None
         self._init_connection()
-        self._create_stream()
 
     def _create_stream(self):
         send_message(self.socket, StreamCreationPacket(False))
@@ -427,6 +427,20 @@ class App:
                         config_packet = ConfigPacket()
                         config_packet.from_bytes(payload)
                         logging.info(f"Received CONFIG command: {vars(config_packet)}")
+                        
+                        if self.stream is None:
+                            self.model_name = config_packet.model_name
+                            self.current_prompt = config_packet.prompt
+                            self.negative_prompt = config_packet.negative_prompt
+                            self.seed = config_packet.seed
+                            self.width = config_packet.width
+                            self.height = config_packet.height
+                            self.t_index_list = config_packet.t_index_list
+                            self.mode = config_packet.mode
+                            self.mode = "img2img" if self.mode == Mode.IMAGE_TO_IMAGE else "txt2img"
+                            self.acceleration = config_packet.acceleration
+                            self._create_stream()
+
                         update_stream = self.model_name != config_packet.model_name or self.width != config_packet.width or self.height != config_packet.height or self.mode != config_packet.mode or self.stream.stream.cfg_type != config_packet.cfg_type or self.acceleration != config_packet.acceleration
                         update_t_index_list = self.t_index_list != config_packet.t_index_list
                         self.model_name = config_packet.model_name
@@ -439,6 +453,7 @@ class App:
                         self.mode = config_packet.mode
                         self.stream.mode = "img2img" if self.mode == Mode.IMAGE_TO_IMAGE else "txt2img"
                         self.acceleration = config_packet.acceleration
+
 
                         if update_stream or update_t_index_list:
                             self.stream.stream = StreamDiffusion(
@@ -497,6 +512,7 @@ class App:
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="Smode Bridge Client Application")
     parser.add_argument("--port", type=int, required=True, help="Port number")
     parser.add_argument("--uuid", type=str, required=True, help="Smode modifier UUID")
