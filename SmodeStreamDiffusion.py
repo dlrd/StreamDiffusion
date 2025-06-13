@@ -384,6 +384,7 @@ class App:
         self.t_index_list = [16]
         self.mode = Mode.IMAGE_TO_IMAGE
         self.acceleration = Acceleration.XFORMERS
+        self.cfg_type = "self" if self.mode == Mode.IMAGE_TO_IMAGE else "none"
 
         self.streamDiffusionToSmodeInterProcessEvent = InterProcessEvent()
         self.streamDiffusionToSmodeInterProcessEvent.create(
@@ -419,7 +420,7 @@ class App:
             enable_similar_image_filter=False,
             similar_image_filter_threshold=0.98,
             use_denoising_batch=True,
-            cfg_type="self" if self.mode == Mode.IMAGE_TO_IMAGE else "none",
+            cfg_type=self.cfg_type,
             seed=self.seed,
             dtype=self.torch_dtype,
             device=self.device,
@@ -578,6 +579,7 @@ class App:
                         self.height = config_packet.height
                         self.t_index_list = config_packet.t_index_list
                         self.mode = config_packet.mode
+                        self.cfg_type = config_packet.cfg_type
                         self.stream.mode = (
                             "img2img"
                             if self.mode == Mode.IMAGE_TO_IMAGE
