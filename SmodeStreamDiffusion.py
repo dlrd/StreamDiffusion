@@ -550,7 +550,7 @@ class App:
 
                     if x_output is not None:
                         self.output_tensors.copy_to_smode(x_output)
-                    logging.info(f"{(time.time() - compute_time) * 1000} ms")
+                    #logging.info(f"{(time.time() - compute_time) * 1000} ms")
                     self.streamDiffusionToSmodeInterProcessEvent.signal()
                 # Process received messages
                 for cmd, payload in messages.items():
@@ -585,6 +585,7 @@ class App:
                             if self.mode == Mode.IMAGE_TO_IMAGE
                             else "txt2img"
                         )
+                        previous_acceleration = self.acceleration
                         self.acceleration = config_packet.acceleration
 
                         if update_stream or update_t_index_list:
@@ -604,18 +605,17 @@ class App:
                                 self.stream.recreate_pipe()
                             elif self.acceleration == Acceleration.TENSORRT:
                                 try:
+                                    if previous_acceleration == Acceleration.XFORMERS:
+                                        self._create_stream()
                                     from src.streamdiffusion.acceleration.tensorrt import accelerate_with_tensorrt
                                     self.stream.stream = accelerate_with_tensorrt(
                                         self.stream.stream,
                                         "engines",
                                         max_batch_size=2,
                                     )
-                                except ImportError:
-                                    logging.warning(
-                                        "TensorRT acceleration not available; continuing with xformers"
-                                    )
-                                    self.stream.stream.pipe.enable_xformers_memory_efficient_attention()
-                                    self.stream.recreate_pipe()
+                                    #self.stream.recreate_pipe()
+                                except Exception as e:
+                                    logging.warning(f"TensorRT acceleration not available; {e}")
 
                         if update_stream:
                             self._create_stream()
