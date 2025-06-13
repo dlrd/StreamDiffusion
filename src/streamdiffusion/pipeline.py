@@ -168,9 +168,11 @@ class StreamDiffusion:
         self.prompt_embeds = encoder_output[0].repeat(self.batch_size, 1, 1)
 
         if self.use_denoising_batch and self.cfg_type == "full":
-            uncond_prompt_embeds = encoder_output[1].repeat(self.batch_size, 1, 1)
+            if encoder_output[1] is not None:
+                uncond_prompt_embeds = encoder_output[1].repeat(self.batch_size, 1, 1)
         elif self.cfg_type == "initialize":
-            uncond_prompt_embeds = encoder_output[1].repeat(self.frame_bff_size, 1, 1)
+            if encoder_output[1] is not None:
+                uncond_prompt_embeds = encoder_output[1].repeat(self.frame_bff_size, 1, 1)
 
         if self.guidance_scale > 1.0 and (
             self.cfg_type == "initialize" or self.cfg_type == "full"
