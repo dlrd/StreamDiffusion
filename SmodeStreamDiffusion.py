@@ -1,7 +1,7 @@
 import socket
 import time
 import select
-from typing import NamedTuple
+from typing import Dict, NamedTuple
 import torch
 import argparse
 import enum
@@ -197,6 +197,7 @@ class ConfigPacket(Packet):
         self.mode = Mode.IMAGE_TO_IMAGE
         self.cfg_type = "none"
         self.acceleration = Acceleration.XFORMERS
+        self.lora_dict : Dict[str, float]= None
 
     def from_bytes(self, data: bytes):
         offset = 0
@@ -239,6 +240,22 @@ class ConfigPacket(Packet):
             ENDIAN_FORMAT + FLOAT32 + UINT32 + UINT32 + UINT32, data, offset
         )
         self.cfg_type = config_type_to_str(ConfigType(cfg_type))
+        offset += 16
+        if offset + 4 <= len(data):
+            lora_dict_len, = struct.unpack_from(ENDIAN_FORMAT + UINT32, data, offset)
+            offset += 4
+            self.lora_dict = {}
+            for _ in range(lora_dict_len):
+                if offset + 4 > len(data):
+                    raise ValueError("Insufficient data for lora_dict key length")
+                key, offset = read_string(data, offset)
+                if offset + 4 > len(data):
+                    raise ValueError("Insufficient data for lora_dict value")
+                value, = struct.unpack_from(ENDIAN_FORMAT + FLOAT32, data, offset)
+                self.lora_dict[key] = value
+                offset += 4
+        else:
+            self.lora_dict = None
         return self
 
 
@@ -385,6 +402,7 @@ class App:
         self.mode = Mode.IMAGE_TO_IMAGE
         self.acceleration = Acceleration.XFORMERS
         self.cfg_type = "self" if self.mode == Mode.IMAGE_TO_IMAGE else "none"
+        self.lora_dict : Dict[str, float] = None
 
         self.streamDiffusionToSmodeInterProcessEvent = InterProcessEvent()
         self.streamDiffusionToSmodeInterProcessEvent.create(
@@ -404,7 +422,7 @@ class App:
         self.stream = StreamDiffusionWrapper(
             model_id_or_path=self.model_name,
             t_index_list=self.t_index_list,
-            lora_dict=None,
+            lora_dict=self.lora_dict,
             mode="img2img" if self.mode == Mode.IMAGE_TO_IMAGE else "txt2img",
             frame_buffer_size=1,
             width=self.width,
@@ -567,6 +585,7 @@ class App:
                             or self.mode != config_packet.mode
                             or self.stream.stream.cfg_type != config_packet.cfg_type
                             or self.acceleration != config_packet.acceleration
+                            or self.lora_dict != config_packet.lora_dict
                         )
                         update_t_index_list = (
                             self.t_index_list != config_packet.t_index_list
@@ -585,6 +604,7 @@ class App:
                             if self.mode == Mode.IMAGE_TO_IMAGE
                             else "txt2img"
                         )
+                        self.lora_dict = config_packet.lora_dict
                         previous_acceleration = self.acceleration
                         self.acceleration = config_packet.acceleration
 
@@ -613,14 +633,13 @@ class App:
                                         "engines",
                                         max_batch_size=2,
                                     )
-                                    #self.stream.recreate_pipe()
+                                except ModuleNotFoundError:
+                                    logging.warning(
+                                        "TensorRT module not found; please install it"
+                                    )
+                                    raise
                                 except Exception as e:
                                     logging.warning(f"TensorRT acceleration not available; {e}")
-
-                        if update_stream:
-                            self._create_stream()
-                            self.ipc_info = None
-                            self.buffer_shape = None
 
                         if self.stream:
                             self.stream.stream.prepare(
@@ -636,9 +655,6 @@ class App:
                         return
                     else:
                         logging.warning(f"Received unexpected command: {cmd}")
-
-                # No fixed sleep here; select timeout manages CPU usage
-
         except socket.error as e:
             logging.error(f"Socket error during processing: {e}")
         finally:
@@ -668,6 +684,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model", type=str, required=True, help="Model name to use"
     )
+    time.sleep(5)
     args = parser.parse_args()
     config = Args(
         port=args.port,
