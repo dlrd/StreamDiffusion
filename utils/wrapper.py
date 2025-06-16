@@ -423,17 +423,15 @@ class StreamDiffusionWrapper:
 
         try:  # Load from local directory
             try:
+                # Try to load from Hugging Face with auth token
                 pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
-                    model_id_or_path
+                    model_id_or_path, use_auth_token="HF_TOKEN" in os.environ, torch_dtype=self.dtype
                 ).to(device=self.device, dtype=self.dtype)
             except Exception:
+                # If it fails, try to load from local files only
                 pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
-                    model_id_or_path, local_files_only=True
+                    model_id_or_path, local_files_only=True, torch_dtype=self.dtype
                 ).to(device=self.device, dtype=self.dtype)
-        except ValueError:  # Load from huggingface
-            pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_single_file(
-                model_id_or_path, 
-            ).to(device=self.device, dtype=self.dtype)
         except Exception:  # No model found
             traceback.print_exc()
             print("Model load has failed. Doesn't exist.")

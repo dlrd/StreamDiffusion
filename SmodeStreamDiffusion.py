@@ -508,6 +508,28 @@ class App:
         packet = UuidPacket(self.config.uuid)
         send_message(self.socket, packet)
 
+    def accelerate(self, previous_acceleration: Acceleration = Acceleration.NONE):
+        if self.acceleration == Acceleration.XFORMERS:
+            self.stream.stream.pipe.enable_xformers_memory_efficient_attention()
+            self.stream.recreate_pipe()
+        elif self.acceleration == Acceleration.TENSORRT:
+            try:
+                if previous_acceleration == Acceleration.XFORMERS:
+                    self._create_stream()
+                from src.streamdiffusion.acceleration.tensorrt import accelerate_with_tensorrt
+                self.stream.stream = accelerate_with_tensorrt(
+                    self.stream.stream,
+                    "engines",
+                    max_batch_size=2,
+                )
+            except ModuleNotFoundError:
+                logging.warning(
+                    "TensorRT module not found; please install it"
+                )
+                raise
+            except Exception as e:
+                logging.warning(f"TensorRT acceleration not available; {e}")
+
     def run(self):
         logging.info("Entering main command loop")
         try:
@@ -578,9 +600,10 @@ class App:
                         logging.info(
                             f"Received CONFIG command: {vars(config_packet)}"
                         )
+                        model_has_changed = self.model_name != config_packet.model_name
+                        lora_dict_has_changed = self.lora_dict != config_packet.lora_dict
                         update_stream = (
-                            self.model_name != config_packet.model_name
-                            or self.width != config_packet.width
+                            self.width != config_packet.width
                             or self.height != config_packet.height
                             or self.mode != config_packet.mode
                             or self.stream.stream.cfg_type != config_packet.cfg_type
@@ -608,7 +631,10 @@ class App:
                         previous_acceleration = self.acceleration
                         self.acceleration = config_packet.acceleration
 
-                        if update_stream or update_t_index_list:
+                        if model_has_changed or lora_dict_has_changed:
+                            self._create_stream()
+                            self.accelerate()
+                        elif update_stream or update_t_index_list:
                             self.stream.stream = StreamDiffusion(
                                 pipe=self.stream.stream.pipe,
                                 t_index_list=self.t_index_list,
@@ -620,26 +646,8 @@ class App:
                                 use_denoising_batch=self.stream.stream.use_denoising_batch,
                                 cfg_type=config_packet.cfg_type,
                             )
-                            if self.acceleration == Acceleration.XFORMERS:
-                                self.stream.stream.pipe.enable_xformers_memory_efficient_attention()
-                                self.stream.recreate_pipe()
-                            elif self.acceleration == Acceleration.TENSORRT:
-                                try:
-                                    if previous_acceleration == Acceleration.XFORMERS:
-                                        self._create_stream()
-                                    from src.streamdiffusion.acceleration.tensorrt import accelerate_with_tensorrt
-                                    self.stream.stream = accelerate_with_tensorrt(
-                                        self.stream.stream,
-                                        "engines",
-                                        max_batch_size=2,
-                                    )
-                                except ModuleNotFoundError:
-                                    logging.warning(
-                                        "TensorRT module not found; please install it"
-                                    )
-                                    raise
-                                except Exception as e:
-                                    logging.warning(f"TensorRT acceleration not available; {e}")
+                            self.accelerate(previous_acceleration)
+
 
                         if self.stream:
                             self.stream.stream.prepare(
@@ -657,6 +665,9 @@ class App:
                         logging.warning(f"Received unexpected command: {cmd}")
         except socket.error as e:
             logging.error(f"Socket error during processing: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
+            raise
         finally:
             self.socket.close()
             logging.info("Socket connection closed")
