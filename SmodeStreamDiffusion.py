@@ -385,6 +385,7 @@ class App:
     def __init__(
         self, config: Args, device: torch.device, torch_dtype: torch.dtype
     ):
+        self.stream = None
         self.config = config
         self.device = device
         self.torch_dtype = torch_dtype
@@ -415,7 +416,7 @@ class App:
             "Global\\SmodeToStreamDiffusion-" + config.uuid
         )
         self._init_connection()
-        self._create_stream()
+        self._create_tensors(3, self.width, self.height)
 
     def _create_stream(self):
         send_message(self.socket, StreamCreationPacket(False))
@@ -446,6 +447,7 @@ class App:
         )
 
         self._create_tensors(3, self.width, self.height)
+        self.accelerate()
 
         send_message(self.socket, StreamCreationPacket(True))
 
@@ -556,7 +558,7 @@ class App:
                     exit(0)
 
                 wait_result = self.smodeToStreamDiffusionInterProcessEvent.wait(0)
-                if wait_result == win32event.WAIT_OBJECT_0:
+                if wait_result == win32event.WAIT_OBJECT_0 and self.stream:
                     compute_time = time.time()
                     if self.output_tensors is None:
                         self._create_tensors(3, self.width, self.height)
@@ -597,57 +599,55 @@ class App:
                     if cmd == CommandType.CONFIG:
                         config_packet = ConfigPacket()
                         config_packet.from_bytes(payload)
-                        logging.info(
-                            f"Received CONFIG command: {vars(config_packet)}"
-                        )
-                        model_has_changed = self.model_name != config_packet.model_name
-                        lora_dict_has_changed = self.lora_dict != config_packet.lora_dict
-                        update_stream = (
-                            self.width != config_packet.width
-                            or self.height != config_packet.height
-                            or self.mode != config_packet.mode
-                            or self.stream.stream.cfg_type != config_packet.cfg_type
-                            or self.acceleration != config_packet.acceleration
-                            or self.lora_dict != config_packet.lora_dict
-                        )
-                        update_t_index_list = (
-                            self.t_index_list != config_packet.t_index_list
-                        )
-                        self.model_name = config_packet.model_name
-                        self.current_prompt = config_packet.prompt
-                        self.negative_prompt = config_packet.negative_prompt
-                        self.seed = config_packet.seed
-                        self.width = config_packet.width
-                        self.height = config_packet.height
-                        self.t_index_list = config_packet.t_index_list
-                        self.mode = config_packet.mode
-                        self.cfg_type = config_packet.cfg_type
-                        self.stream.mode = (
-                            "img2img"
-                            if self.mode == Mode.IMAGE_TO_IMAGE
-                            else "txt2img"
-                        )
-                        self.lora_dict = config_packet.lora_dict
-                        previous_acceleration = self.acceleration
-                        self.acceleration = config_packet.acceleration
+                        logging.info(f"Received CONFIG command: {vars(config_packet)}")
 
-                        if model_has_changed or lora_dict_has_changed:
+                        def update_parameters(app: App, config_packet: ConfigPacket):
+                            app.model_name = config_packet.model_name
+                            app.current_prompt = config_packet.prompt
+                            app.negative_prompt = config_packet.negative_prompt
+                            app.seed = config_packet.seed
+                            app.width = config_packet.width
+                            app.height = config_packet.height
+                            app.t_index_list = config_packet.t_index_list
+                            app.mode = config_packet.mode
+                            app.cfg_type = config_packet.cfg_type
+                            app.lora_dict = config_packet.lora_dict
+                            app.acceleration = config_packet.acceleration
+
+                        if not self.stream:
+                            update_parameters(self, config_packet)
                             self._create_stream()
-                            self.accelerate()
-                        elif update_stream or update_t_index_list:
-                            self.stream.stream = StreamDiffusion(
-                                pipe=self.stream.stream.pipe,
-                                t_index_list=self.t_index_list,
-                                torch_dtype=self.stream.stream.dtype,
-                                width=self.width,
-                                height=self.height,
-                                do_add_noise=self.stream.stream.do_add_noise,
-                                frame_buffer_size=self.stream.frame_buffer_size,
-                                use_denoising_batch=self.stream.stream.use_denoising_batch,
-                                cfg_type=config_packet.cfg_type,
+                        else:
+                            model_has_changed = self.model_name != config_packet.model_name
+                            lora_dict_has_changed = self.lora_dict != config_packet.lora_dict
+                            update_stream = (
+                                self.width != config_packet.width
+                                or self.height != config_packet.height
+                                or self.mode != config_packet.mode
+                                or self.stream.stream.cfg_type != config_packet.cfg_type
+                                or self.acceleration != config_packet.acceleration
+                                or self.lora_dict != config_packet.lora_dict
                             )
-                            self.accelerate(previous_acceleration)
+                            update_t_index_list = self.t_index_list != config_packet.t_index_list
+                            previous_acceleration = self.acceleration
+                            update_parameters(self, config_packet)
 
+                            if model_has_changed or lora_dict_has_changed:
+                                self._create_stream()
+                                self.accelerate()
+                            elif update_stream or update_t_index_list:
+                                self.stream.stream = StreamDiffusion(
+                                    pipe=self.stream.stream.pipe,
+                                    t_index_list=self.t_index_list,
+                                    torch_dtype=self.stream.stream.dtype,
+                                    width=self.width,
+                                    height=self.height,
+                                    do_add_noise=self.stream.stream.do_add_noise,
+                                    frame_buffer_size=self.stream.frame_buffer_size,
+                                    use_denoising_batch=self.stream.stream.use_denoising_batch,
+                                    cfg_type=config_packet.cfg_type,
+                                )
+                                self.accelerate(previous_acceleration)
 
                         if self.stream:
                             self.stream.stream.prepare(
@@ -695,7 +695,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model", type=str, required=True, help="Model name to use"
     )
-    time.sleep(5)
+
     args = parser.parse_args()
     config = Args(
         port=args.port,
