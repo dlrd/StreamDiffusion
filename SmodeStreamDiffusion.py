@@ -526,8 +526,8 @@ class App:
                 if previous_acceleration == Acceleration.XFORMERS:
                     self._create_stream()
                 from src.streamdiffusion.acceleration.tensorrt import accelerate_with_tensorrt
-                self.stream.stream = accelerate_with_tensorrt(
-                    self.stream.stream,
+                self.stream = accelerate_with_tensorrt(
+                    self.stream,
                     "engines",
                     max_batch_size=2,
                 )
