@@ -186,6 +186,7 @@ class FrameDataPacket(Packet):
 class ConfigPacket(Packet):
     def __init__(self):
         super().__init__(CommandType.CONFIG, b"")
+        self.cache_dir = None
         self.model_name = ""
         self.prompt = ""
         self.negative_prompt = ""
@@ -202,6 +203,10 @@ class ConfigPacket(Packet):
     def from_bytes(self, data: bytes):
         offset = 0
         self.t_index_list = []
+        self.cache_dir = None
+        cache_dir, offset = read_string(data, offset)
+        if len(cache_dir) > 0:
+            self.cache_dir = cache_dir
         self.model_name, offset = read_string(data, offset)
         self.prompt, offset = read_string(data, offset)
         self.negative_prompt, offset = read_string(data, offset)
@@ -386,6 +391,7 @@ class App:
         self, config: Args, device: torch.device, torch_dtype: torch.dtype
     ):
         self.stream = None
+        self.cache_dir = None
         self.config = config
         self.device = device
         self.torch_dtype = torch_dtype
@@ -444,6 +450,7 @@ class App:
             dtype=self.torch_dtype,
             device=self.device,
             output_type="pt",
+            cache_dir=self.cache_dir,
         )
 
         self._create_tensors(3, self.width, self.height)
@@ -615,6 +622,7 @@ class App:
                             app.cfg_type = config_packet.cfg_type
                             app.lora_dict = config_packet.lora_dict
                             app.acceleration = config_packet.acceleration
+                            app.cache_dir = config_packet.cache_dir
 
                         if not self.stream:
                             update_parameters(self, config_packet)

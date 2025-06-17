@@ -46,6 +46,7 @@ class StreamDiffusionWrapper:
         seed: int = 2,
         use_safety_checker: bool = False,
         engine_dir: Optional[Union[str, Path]] = "engines",
+        cache_dir: Optional[Union[str, Path]] = None,
     ):
         """
         Initializes the StreamDiffusionWrapper.
@@ -162,6 +163,7 @@ class StreamDiffusionWrapper:
             cfg_type=cfg_type,
             seed=seed,
             engine_dir=engine_dir,
+            cache_dir=cache_dir,
         )
 
         if device_ids is not None:
@@ -370,6 +372,7 @@ class StreamDiffusionWrapper:
         cfg_type: Literal["none", "full", "self", "initialize"] = "self",
         seed: int = 2,
         engine_dir: Optional[Union[str, Path]] = "engines",
+        cache_dir: Optional[Union[str, Path]] = None,
     ) -> StreamDiffusion:
         """
         Loads the model.
@@ -421,17 +424,22 @@ class StreamDiffusionWrapper:
             The loaded model.
         """
 
-        try:  # Load from local directory
+        try:
             try:
                 # Try to load from Hugging Face with auth token
                 pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
-                    model_id_or_path, use_auth_token="HF_TOKEN" in os.environ, torch_dtype=self.dtype
+                    model_id_or_path, torch_dtype=self.dtype, cache_dir=cache_dir if cache_dir else None
                 ).to(device=self.device, dtype=self.dtype)
             except Exception:
                 # If it fails, try to load from local files only
-                pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
-                    model_id_or_path, local_files_only=True, torch_dtype=self.dtype
-                ).to(device=self.device, dtype=self.dtype)
+                try:
+                    pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_pretrained(
+                        model_id_or_path, local_files_only=True, torch_dtype=self.dtype, cache_dir=cache_dir if cache_dir else None
+                    ).to(device=self.device, dtype=self.dtype)
+                except Exception:
+                    pipe: StableDiffusionPipeline = StableDiffusionPipeline.from_single_file(
+                        model_id_or_path, torch_dtype=self.dtype, cache_dir=cache_dir if cache_dir else None
+                    ).to(device=self.device)
         except Exception:  # No model found
             traceback.print_exc()
             print("Model load has failed. Doesn't exist.")

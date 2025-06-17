@@ -7,3 +7,4 @@ transformers
 fire
 polygraphy==0.47.1
 onnx-graphsurgeon
+omegaconf
