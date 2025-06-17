@@ -531,6 +531,8 @@ class App:
                 raise
             except Exception as e:
                 logging.warning(f"TensorRT acceleration not available; {e}")
+        else:
+            self.stream.recreate_pipe()
 
     def run(self):
         logging.info("Entering main command loop")
