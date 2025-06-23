@@ -23,3 +23,4 @@ pip.exe install -r requirements.txt
 pip.exe install cuda-python
 
 echo Install done
+pause
