@@ -454,8 +454,6 @@ class App:
         )
 
         self._create_tensors(3, self.width, self.height)
-        self.accelerate()
-
         send_message(self.socket, StreamCreationPacket(True))
 
     def _create_tensors(self, channels, w, h):
@@ -525,12 +523,8 @@ class App:
             try:
                 if previous_acceleration == Acceleration.XFORMERS:
                     self._create_stream()
-                from src.streamdiffusion.acceleration.tensorrt import accelerate_with_tensorrt
-                self.stream = accelerate_with_tensorrt(
-                    self.stream,
-                    "engines",
-                    max_batch_size=2,
-                )
+                else:
+                    self.stream.enable_tensorrt_acceleration(self.stream.stream, self.model_name, True, True)
             except ModuleNotFoundError:
                 logging.warning(
                     "TensorRT module not found; please install it"
