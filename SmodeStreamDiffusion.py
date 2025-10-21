@@ -7,7 +7,6 @@ import argparse
 import enum
 import logging
 import struct
-import torchvision
 import torchvision.transforms.functional as F
 from torch.multiprocessing import reductions  # For obtaining CUDA IPC handle
 
