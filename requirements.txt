@@ -3,6 +3,7 @@ huggingface_hub==0.24.6
 accelerate
 diffusers==0.24.0
 onnxruntime
+pywin32
 safetensors
 transformers
 fire
