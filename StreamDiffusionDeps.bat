@@ -1,4 +1,10 @@
 @echo off
+setlocal ENABLEDELAYEDEXPANSION
+
+echo ==========================================================
+echo   Smode StreamDiffusion Dependency Installer (CUDA Auto)
+echo ==========================================================
+echo.
 
 if not exist .venv (
     echo Installing pip...
@@ -10,16 +16,32 @@ if not exist .venv (
     echo Virtual environment already exists.
 )
 
-REM Activate the virtual environment
 call .\.venv\Scripts\activate
 
-REM Install required packages
+echo Detecting NVIDIA GPU...
+set CUDA_AVAILABLE=0
+where nvidia-smi >nul 2>nul && set CUDA_AVAILABLE=1
 
-echo Installing requirements...
+if %CUDA_AVAILABLE%==1 (
+    echo GPU detected, using CUDA 12.8 builds.
+    set TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
+) else (
+    echo No GPU detected, using CPU-only builds.
+    set TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+)
 
-pip.exe install setuptools wheel
-pip.exe install torch torchvision xformers --index-url https://download.pytorch.org/whl/cu128
-pip.exe install -r requirements.txt
-pip.exe install cuda-python
+echo.
+python -m pip install --upgrade pip setuptools wheel
 
-echo Install done
+echo Removing old PyTorch / TorchVision / xFormers if any...
+pip uninstall -y torch torchvision xformers
+
+echo Installing PyTorch (2.8.0) + TorchVision (0.23.0) + xFormers
+pip install torch==2.8.0 torchvision==0.23.0 xformers --index-url %TORCH_INDEX_URL%
+
+echo Installing project requirements...
+pip install -r requirements.txt
+pip install cuda-python
+
+echo.
+echo All dependencies installed successfully.
