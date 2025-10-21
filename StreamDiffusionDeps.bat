@@ -36,8 +36,8 @@ python -m pip install --upgrade pip setuptools wheel
 echo Removing old PyTorch / TorchVision / xFormers if any...
 pip uninstall -y torch torchvision xformers
 
-echo Installing PyTorch (2.8.0) + TorchVision (0.23.0) + xFormers
-pip install torch==2.8.0 torchvision==0.23.0 xformers --index-url %TORCH_INDEX_URL%
+echo Installing PyTorch (2.7.0) + TorchVision (0.22.1) + xFormers
+pip install torch==2.7.1 torchvision==0.22.1 xformers --index-url %TORCH_INDEX_URL%
 
 echo Installing project requirements...
 pip install -r requirements.txt
