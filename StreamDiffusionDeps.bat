@@ -41,7 +41,7 @@ pip install torch==2.7.1 torchvision==0.22.1 xformers --index-url %TORCH_INDEX_U
 
 echo Installing project requirements...
 pip install -r requirements.txt
-pip install cuda-python
+pip install cuda-python==12.9.4
 
 echo.
 echo All dependencies installed successfully.
