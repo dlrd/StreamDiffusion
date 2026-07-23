@@ -103,8 +103,30 @@ class StreamDiffusionEngine(BaseEngine):
             warning_callback=runtime.get("warning_callback"),
         )
 
+        # Correct is_sd2 from the ACTUAL architecture: name-based detection false-positives on
+        # version numbers (e.g. "kohaku-v2.1" is SD 1.5, not SD 2.1) -> wrong ControlNet -> crash.
+        _name_sd2 = self.is_sd2
+        self.is_sd2 = self._resolve_is_sd2(_name_sd2)
+        if self.is_sd2 != _name_sd2:
+            logging.info(f"[Pipeline] is_sd2 corrected by architecture: name={_name_sd2} -> arch={self.is_sd2}")
         self._loaded = True
         logging.info("[Engine] StreamDiffusion engine active")
+
+    def _resolve_is_sd2(self, name_based: bool) -> bool:
+        """Detect SD 2.x by architecture (text-encoder hidden size / unet cross_attention_dim == 1024),
+        not the model name which false-positives on version numbers like 'kohaku-v2.1' (an SD 1.5 model)."""
+        stream = getattr(self.wrapper, "stream", None)
+        probes = (
+            lambda: stream.text_encoder.config.hidden_size == 1024,
+            lambda: stream.unet.config.cross_attention_dim == 1024,
+            lambda: stream.pipe.text_encoder.config.hidden_size == 1024,
+        )
+        for probe in probes:
+            try:
+                return bool(probe())
+            except Exception:
+                continue
+        return name_based
 
     def run(
         self,
