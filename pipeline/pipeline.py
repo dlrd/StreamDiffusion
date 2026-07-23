@@ -274,6 +274,17 @@ class StreamDiffusion:
         adapter_name: Optional[Any] = None,
         **kwargs,
     ) -> None:
+        # The default LCM-LoRA repo dropped pytorch_lora_weights.bin; request the safetensors
+        # file explicitly (falling back to diffusers auto-resolution for other repo layouts).
+        if "weight_name" not in kwargs and isinstance(pretrained_model_name_or_path_or_dict, str):
+            try:
+                self.pipe.load_lora_weights(
+                    pretrained_model_name_or_path_or_dict, adapter_name,
+                    weight_name="pytorch_lora_weights.safetensors", **kwargs
+                )
+                return
+            except Exception:
+                pass
         self.pipe.load_lora_weights(
             pretrained_model_name_or_path_or_dict, adapter_name, **kwargs
         )
