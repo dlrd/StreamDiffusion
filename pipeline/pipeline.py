@@ -363,28 +363,33 @@ class StreamDiffusion:
         if self.guidance_scale > 1.0:
             do_classifier_free_guidance = True
 
-        encoder_output = self.pipe.encode_prompt(
-            prompt=prompt,
-            device=self.device,
-            num_images_per_prompt=1,
-            do_classifier_free_guidance=do_classifier_free_guidance,
-            negative_prompt=negative_prompt,
-        )
-        self.prompt_embeds = encoder_output[0].repeat(self.batch_size, 1, 1)
-
-        if self.use_denoising_batch and self.cfg_type == "full":
-            if encoder_output[1] is not None:
-                uncond_prompt_embeds = encoder_output[1].repeat(self.batch_size, 1, 1)
-        elif self.cfg_type == "initialize":
-            if encoder_output[1] is not None:
-                uncond_prompt_embeds = encoder_output[1].repeat(self.frame_bff_size, 1, 1)
-
-        if self.guidance_scale > 1.0 and (
-            self.cfg_type == "initialize" or self.cfg_type == "full"
-        ):
-            self.prompt_embeds = torch.cat(
-                [uncond_prompt_embeds, self.prompt_embeds], dim=0
+        # Skip the eager text-encoder forward when prompt inputs are unchanged.
+        _embed_key = (prompt, negative_prompt, do_classifier_free_guidance,
+                      self.cfg_type, self.batch_size)
+        if getattr(self, "_embed_cache_key", None) != _embed_key or getattr(self, "prompt_embeds", None) is None:
+            encoder_output = self.pipe.encode_prompt(
+                prompt=prompt,
+                device=self.device,
+                num_images_per_prompt=1,
+                do_classifier_free_guidance=do_classifier_free_guidance,
+                negative_prompt=negative_prompt,
             )
+            self.prompt_embeds = encoder_output[0].repeat(self.batch_size, 1, 1)
+
+            if self.use_denoising_batch and self.cfg_type == "full":
+                if encoder_output[1] is not None:
+                    uncond_prompt_embeds = encoder_output[1].repeat(self.batch_size, 1, 1)
+            elif self.cfg_type == "initialize":
+                if encoder_output[1] is not None:
+                    uncond_prompt_embeds = encoder_output[1].repeat(self.frame_bff_size, 1, 1)
+
+            if self.guidance_scale > 1.0 and (
+                self.cfg_type == "initialize" or self.cfg_type == "full"
+            ):
+                self.prompt_embeds = torch.cat(
+                    [uncond_prompt_embeds, self.prompt_embeds], dim=0
+                )
+            self._embed_cache_key = _embed_key
 
         coeffs = self._compute_scheduler_coefficients(num_inference_steps)
 
@@ -462,6 +467,8 @@ class StreamDiffusion:
             do_classifier_free_guidance=False,
         )
         self.prompt_embeds = encoder_output[0].repeat(self.batch_size, 1, 1)
+
+        self._embed_cache_key = None
 
         # Reset RCFG rolling noise on prompt change: it carries residual from the
         # old prompt across frames, causing a flash on swap (multi-step only).

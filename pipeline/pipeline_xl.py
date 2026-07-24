@@ -400,45 +400,50 @@ class StreamDiffusionXL:
         if self.guidance_scale > 1.0:
             do_classifier_free_guidance = True
 
-        encoder_output = self.pipe.encode_prompt(
-            prompt=prompt,
-            device=self.device,
-            num_images_per_prompt=1,
-            do_classifier_free_guidance=do_classifier_free_guidance,
-            negative_prompt=negative_prompt,
-        )
-        self.prompt_embeds = encoder_output[0].repeat(self.batch_size, 1, 1)
-
-        # SDXL encode_prompt: (prompt_embeds, neg_prompt_embeds, pooled, neg_pooled).
-        if len(encoder_output) > 2:
-            pooled_prompt_embeds = encoder_output[2]
-            add_time_ids = self._get_add_time_ids(
-                (self.height, self.width),
-                (0, 0),
-                (self.height, self.width),
-                dtype=self.dtype,
+        # Skip the eager dual-CLIP encode when prompt inputs are unchanged.
+        _embed_key = (prompt, negative_prompt, do_classifier_free_guidance,
+                      self.cfg_type, self.batch_size)
+        if getattr(self, "_embed_cache_key", None) != _embed_key or getattr(self, "prompt_embeds", None) is None:
+            encoder_output = self.pipe.encode_prompt(
+                prompt=prompt,
                 device=self.device,
+                num_images_per_prompt=1,
+                do_classifier_free_guidance=do_classifier_free_guidance,
+                negative_prompt=negative_prompt,
             )
-            self.added_cond_kwargs = {
-                "text_embeds": pooled_prompt_embeds,
-                "time_ids": add_time_ids,
-            }
-        else:
-            self.added_cond_kwargs = None
+            self.prompt_embeds = encoder_output[0].repeat(self.batch_size, 1, 1)
 
-        if self.use_denoising_batch and self.cfg_type == "full":
-            if encoder_output[1] is not None:
-                uncond_prompt_embeds = encoder_output[1].repeat(self.batch_size, 1, 1)
-        elif self.cfg_type == "initialize":
-            if encoder_output[1] is not None:
-                uncond_prompt_embeds = encoder_output[1].repeat(self.frame_bff_size, 1, 1)
+            # SDXL encode_prompt: (prompt_embeds, neg_prompt_embeds, pooled, neg_pooled).
+            if len(encoder_output) > 2:
+                pooled_prompt_embeds = encoder_output[2]
+                add_time_ids = self._get_add_time_ids(
+                    (self.height, self.width),
+                    (0, 0),
+                    (self.height, self.width),
+                    dtype=self.dtype,
+                    device=self.device,
+                )
+                self.added_cond_kwargs = {
+                    "text_embeds": pooled_prompt_embeds,
+                    "time_ids": add_time_ids,
+                }
+            else:
+                self.added_cond_kwargs = None
 
-        if self.guidance_scale > 1.0 and (
-            self.cfg_type == "initialize" or self.cfg_type == "full"
-        ):
-            self.prompt_embeds = torch.cat(
-                [uncond_prompt_embeds, self.prompt_embeds], dim=0
-            )
+            if self.use_denoising_batch and self.cfg_type == "full":
+                if encoder_output[1] is not None:
+                    uncond_prompt_embeds = encoder_output[1].repeat(self.batch_size, 1, 1)
+            elif self.cfg_type == "initialize":
+                if encoder_output[1] is not None:
+                    uncond_prompt_embeds = encoder_output[1].repeat(self.frame_bff_size, 1, 1)
+
+            if self.guidance_scale > 1.0 and (
+                self.cfg_type == "initialize" or self.cfg_type == "full"
+            ):
+                self.prompt_embeds = torch.cat(
+                    [uncond_prompt_embeds, self.prompt_embeds], dim=0
+                )
+            self._embed_cache_key = _embed_key
 
         coeffs = self._compute_scheduler_coefficients(num_inference_steps)
 
@@ -536,6 +541,8 @@ class StreamDiffusionXL:
                     "text_embeds": pooled_prompt_embeds,
                     "time_ids": add_time_ids,
                 }
+
+        self._embed_cache_key = None
 
         # Reset RCFG rolling noise on prompt change (flash fix, multi-step only).
         if hasattr(self, 'stock_noise') and self.stock_noise is not None:

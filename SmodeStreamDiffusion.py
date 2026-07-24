@@ -54,6 +54,8 @@ from diffusers import ControlNetModel
 from controlnet import ControlNetManager
 import win32event
 
+import struct
+
 from ipc import (
     InterProcessEvent,
     CommandType, Mode, Acceleration, ConfigType, config_type_to_str, Args,
@@ -61,6 +63,7 @@ from ipc import (
     _parse_config_with_cache,
     StreamDiffusionSmodeTexture,
     recv_all, recv_message, send_message, read_string, is_socket_connected,
+    MAGIC_NUMBER, ENDIAN_FORMAT,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -72,6 +75,7 @@ class App:
         self.stream = None
         self.cache_dir = None
         self.socket = None
+        self._rx_buffer = b""
         self.streamDiffusionToSmodeInterProcessEvent = None
         self.smodeToStreamDiffusionInterProcessEvent = None
 
@@ -487,28 +491,47 @@ class App:
                 delattr(inner, '_guidance_strength_logged')
 
     def _receive_pending_messages(self) -> dict:
-        """Drain any pending control messages from the Smode socket (non-blocking)."""
+        """Drain pending control messages; never blocks, partial messages stay buffered."""
         messages = {}
-        ready_to_read, _, in_error = select.select(
-            [self.socket], [], [], 0
-        )
-        logging.debug(f"socket ready = {bool(ready_to_read)}")
-        if ready_to_read:
-            while True:
-                try:
-                    cmd, payload = recv_message(self.socket)
-                    if cmd is None:
-                        break
-                    messages[cmd] = payload
-                except socket.error as e:
-                    # WinError 10035 = non-blocking socket has no data (normal).
-                    if e.errno != 10035:
-                        logging.warning(f"Socket receive error: {e}")
-                    break
-        if in_error:
-            # Transient select() error: don't kill the process; the periodic
-            # is_socket_connected health check handles a truly dead socket.
-            logging.error("Socket reported an exceptional condition")
+        while True:
+            ready_to_read, _, in_error = select.select([self.socket], [], [], 0)
+            if in_error:
+                logging.error("Socket reported an exceptional condition")
+            if not ready_to_read:
+                break
+            try:
+                chunk = self.socket.recv(65536)
+            except socket.error as e:
+                # WinError 10035 = non-blocking socket has no data (normal).
+                if e.errno != 10035:
+                    logging.warning(f"Socket receive error: {e}")
+                break
+            if not chunk:
+                break
+            self._rx_buffer += chunk
+
+        buf = self._rx_buffer
+        offset = 0
+        while len(buf) - offset >= 8:
+            magic, size = struct.unpack_from(ENDIAN_FORMAT + "II", buf, offset)
+            if magic != MAGIC_NUMBER:
+                logging.error(f"Invalid magic number received: {hex(magic)}")
+                offset = len(buf)  # drop garbage to resync
+                break
+            if len(buf) - offset < 8 + size:
+                break  # incomplete message: keep buffered, frame loop goes on
+            payload = buf[offset + 8: offset + 8 + size]
+            offset += 8 + size
+            if len(payload) < 4:
+                continue
+            cmd_int, = struct.unpack(ENDIAN_FORMAT + "I", payload[:4])
+            try:
+                cmd = CommandType(cmd_int)
+            except ValueError:
+                logging.error(f"Unknown command code received: {cmd_int}")
+                continue
+            messages[cmd] = payload[4:]
+        self._rx_buffer = buf[offset:]
         return messages
 
     def _handle_pending_commands(self, messages: dict) -> bool:
@@ -537,6 +560,8 @@ class App:
 
                 if not self.stream:
                     prepare_needed = True
+                    prompt_only_change = False
+                    guidance_live_change = False
                     update_parameters(self, config_packet)
                     # self.apply_controlnet_config(config_packet.controlnet_config)
                     self._cache_config_values(self.controlnet_config)
@@ -558,16 +583,36 @@ class App:
                         or self.acceleration != config_packet.acceleration
                         or self.lora_dict != config_packet.lora_dict
                     )
-                    update_t_index_list = self.t_index_list != config_packet.t_index_list
-                    prepare_needed = (
+                    # Compare filtered vs filtered (raw out-of-range values = spurious change).
+                    _new_t_index_list = [t for t in config_packet.t_index_list if 0 <= t < 50] or [1]
+                    update_t_index_list = self.t_index_list != _new_t_index_list
+                    prompt_changed = self.current_prompt != config_packet.prompt
+                    negative_changed = self.negative_prompt != config_packet.negative_prompt
+                    guidance_changed = self.guidance_scale != config_packet.guidance_scale
+                    seed_changed = self.seed != config_packet.seed
+                    # Crossing 1.0 changes the embed layout -> prepare(); same-side = live scalar.
+                    guidance_threshold_crossed = (
+                        (self.guidance_scale > 1.0) != (config_packet.guidance_scale > 1.0)
+                    )
+                    structural_change = (
                         model_has_changed
                         or lora_dict_has_changed
                         or update_stream
                         or update_t_index_list
-                        or self.current_prompt != config_packet.prompt
-                        or self.negative_prompt != config_packet.negative_prompt
-                        or self.seed != config_packet.seed
-                        or self.guidance_scale != config_packet.guidance_scale
+                        or seed_changed
+                        or (guidance_changed and guidance_threshold_crossed)
+                    )
+                    # Prompt-only change -> lightweight update_prompt(); prepare() if CFG concat or negative changed.
+                    cfg_uses_concat = config_packet.cfg_type in ("full", "initialize")
+                    prepare_needed = (
+                        structural_change
+                        or negative_changed
+                        or (prompt_changed and cfg_uses_concat)
+                    )
+                    prompt_only_change = prompt_changed and not prepare_needed
+                    # guidance_scale is read live in unet_step -> applied in place.
+                    guidance_live_change = (
+                        guidance_changed and not guidance_threshold_crossed and not prepare_needed
                     )
                     previous_acceleration = self.acceleration
                     update_parameters(self, config_packet)
@@ -618,6 +663,10 @@ class App:
                             delta=self.current_delta,
                             seed=self.seed,
                         )
+                    elif prompt_only_change:
+                        self.stream.stream.update_prompt(self.current_prompt)
+                    if guidance_live_change:
+                        self.stream.stream.guidance_scale = self.guidance_scale
 
                     self._apply_live_config()
 
@@ -954,6 +1003,10 @@ class App:
             timings['output_copy'] = (time.time() - output_copy_start) * 1000
         elif x_output is not None:
             self.output_tensors.write_chw_to_smode(x_output)
+            # Sync before "done": bounds the async GPU queue (deep queue = ~700ms
+            # stall on param edits) and guarantees the frame is fully written.
+            torch.cuda.synchronize()
+
 
         if profiling_enabled:
             signal_start = time.time()
