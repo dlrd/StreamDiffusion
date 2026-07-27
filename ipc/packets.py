@@ -262,7 +262,7 @@ class ConfigPacket(Packet):
         )
 
     def parse_canny_config(self, data: bytes, offset: int):
-        SIZE = 28
+        SIZE = 24
 
         if offset + SIZE > len(data):
             raise ValueError("Insufficient data for CannyConfig")
@@ -273,13 +273,11 @@ class ConfigPacket(Packet):
             resolution,
             low_threshold,
             high_threshold,
-            aperture_size,
             l2_gradient,
         ) = struct.unpack_from(
             ENDIAN_FORMAT
             + UINT32
             + FLOAT32
-            + UINT32
             + UINT32
             + UINT32
             + UINT32
@@ -295,7 +293,6 @@ class ConfigPacket(Packet):
                 resolution=resolution,
                 low_threshold=low_threshold,
                 high_threshold=high_threshold,
-                aperture_size=aperture_size,
                 l2_gradient=bool(l2_gradient),
             ),
             offset + SIZE,
