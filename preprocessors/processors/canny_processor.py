@@ -22,6 +22,7 @@ class CannyProcessor(BasePreprocessor):
         self._input_buffer_max: Optional[np.ndarray] = None
         self._output_buffer: Optional[torch.Tensor] = None
         self._output_buffer_shape: Optional[tuple] = None
+        self._in_ema: Optional[torch.Tensor] = None
 
     @property
     def name(self) -> str:
@@ -42,6 +43,7 @@ class CannyProcessor(BasePreprocessor):
         self._input_buffer_max = None
         self._output_buffer = None
         self._output_buffer_shape = None
+        self._in_ema = None
         self._loaded = False
         logging.info("[CannyProcessor] Unloaded")
 
@@ -77,6 +79,15 @@ class CannyProcessor(BasePreprocessor):
             downscaled = image_tensor
             process_h, process_w = original_h, original_w
 
+        # Temporal IIR denoise (motion-gated per pixel): sensor noise decorrelates
+        # across frames while real detail persists -> SNR boost no threshold can give.
+        if self._in_ema is None or self._in_ema.shape != downscaled.shape:
+            self._in_ema = downscaled.detach().clone()
+        else:
+            w = (downscaled - self._in_ema).abs().mean(0, keepdim=True).mul_(8.0).clamp_(0.25, 1.0)
+            self._in_ema.lerp_(downscaled, w)
+        downscaled = self._in_ema
+
         if self._input_buffer_max is None:
             self._input_buffer_max = np.empty(
                 (self.max_buffer_size, self.max_buffer_size, 3), dtype=np.uint8
@@ -92,10 +103,20 @@ class CannyProcessor(BasePreprocessor):
         torch.from_numpy(input_buffer).copy_(gpu_u8)
         del gpu_u8
 
+        # Light spatial blur (temporal denoise above does the heavy lifting).
+        cv2.GaussianBlur(input_buffer, (3, 3), 0, dst=input_buffer)
+
         edges = cv2.Canny(
             input_buffer, low_threshold, high_threshold,
             apertureSize=aperture_size, L2gradient=l2_gradient
         )
+
+        # Drop small isolated fragments (sensor-noise specks), keep real contour chains.
+        ncomp, labels, stats, _ = cv2.connectedComponentsWithStats(edges, connectivity=8)
+        if ncomp > 1:
+            small = np.flatnonzero(stats[1:, cv2.CC_STAT_AREA] < 24) + 1
+            if small.size:
+                edges[np.isin(labels, small)] = 0
 
         edges_rgb = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
         edges_temp = torch.from_numpy(edges_rgb).float() / 255.0
