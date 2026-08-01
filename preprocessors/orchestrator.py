@@ -116,10 +116,12 @@ class PreprocessorOrchestrator:
 
         if sig != self._active_signature:
             self._active_names_cache = []
+            # GPU-resident processors first: their async work then overlaps
+            # canny's blocking D2H copy + CPU chain instead of queuing after it.
             enabled_map = {
-                'canny': config.canny.enabled,
                 'depth': config.depth.enabled,
                 'openpose': config.openpose.enabled,
+                'canny': config.canny.enabled,
             }
             self._active_names_cache = [
                 name for name, enabled in enabled_map.items()
