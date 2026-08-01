@@ -1012,10 +1012,12 @@ class ControlNetManager:
 
         try:
             if app.is_sd2:
+                # v2 weights: markedly better body fidelity than v1. Both are
+                # body-only trained — hand/face keypoints read as extra limbs.
                 openpose_repo = "thibaud/controlnet-sd21"
-                openpose_filename = "control_v11p_sd21_openpose.safetensors"
+                openpose_filename = "control_v11p_sd21_openposev2.safetensors"
                 openpose_config = "thibaud/controlnet-sd21-openpose-diffusers"
-                cn_label = "SD 2.1"
+                cn_label = "SD 2.1 (openpose v2)"
             else:
                 openpose_repo, openpose_filename, openpose_config = "lllyasviel/control_v11p_sd15_openpose", None, None
                 cn_label = "SD 1.5"
