@@ -189,32 +189,6 @@ if %errorlevel% neq 0 (
 echo.
 echo [OK] All dependencies installed successfully.
 
-call :write_status installing 3 4 "Configuring CUDA binaries and Python headers"
-
-echo.
-echo ============================================================================
-echo [Step 3/4] Configuration of CUDA binaries and Python headers
-echo ============================================================================
-echo.
-
-echo [INFO] Configuration for torch.compile() and Triton...
-echo [INFO] This step copies the necessary CUDA tools and Python headers.
-echo [INFO] Done now (before insightface) so pip can compile native extensions
-echo [INFO] such as stringzilla against Python.h if no prebuilt wheel exists.
-echo.
-
-python setup_venv.py
-
-if %errorlevel% neq 0 (
-    color 0E
-    echo.
-    echo [WARNING] The configuration of the binaries has failed partially.
-    echo StreamDiffusion will work anyway, but torch.compile^(^) might not work.
-    echo [INFO] Installation will continue...
-) else (
-    echo [OK] CUDA binaries and Python headers configured.
-)
-
 REM Install easy-dwpose separately (artificial conflict with huggingface_hub<0.25, API unchanged)
 echo.
 echo [INFO] Installation of easy-dwpose (--no-deps)...
@@ -248,6 +222,30 @@ if %errorlevel% neq 0 (
     echo [INFO] Installation will continue...
 ) else (
     echo [OK] PyTorch and CUDA are working correctly.
+)
+
+call :write_status installing 3 4 "Configuring CUDA binaries and Python headers"
+
+echo.
+echo ============================================================================
+echo [Step 3/4] Configuration of CUDA binaries and Python headers
+echo ============================================================================
+echo.
+
+echo [INFO] Configuration for torch.compile() and Triton...
+echo [INFO] This step copies the necessary CUDA tools and Python headers.
+echo.
+
+python setup_venv.py
+
+if %errorlevel% neq 0 (
+    color 0E
+    echo.
+    echo [WARNING] The configuration of the binaries has failed partially.
+    echo StreamDiffusion will work anyway, but torch.compile^(^) might not work.
+    echo [INFO] Installation will continue...
+) else (
+    echo [OK] CUDA binaries and Python headers configured.
 )
 
 call :write_status installing 4 4 "Verifying installation"
