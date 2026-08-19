@@ -32,11 +32,12 @@ pillow==12.0.0
 timm==1.0.21
 controlnet-aux==0.0.10
 matplotlib==3.10.7
-# easy-dwpose==1.0.2 installe separement avec --no-deps (conflit artificiel huggingface_hub<0.25)
+# easy-dwpose==1.0.2 installed separately with --no-deps (artificial conflict with huggingface_hub<0.25)
 
-# IP-Adapter FaceID (face identity preservation)
-# Note: insightface 0.7.3 requires numpy<2. Installed separately in install.bat from
-# a pre-compiled Windows wheel (Gourieff/Assets) to avoid MSVC compilation.
+# IP-Adapter FaceID (face identity preservation) — feature unused, not installed.
+# ip_adapter_processor.py degrades gracefully (try/except) without it.
+# To re-enable: pip install the pre-compiled Windows wheel (Gourieff/Assets,
+# insightface 0.7.3, requires numpy<2) to avoid MSVC compilation.
 # insightface==0.7.3
 
 # Image science utilities (used by depth + openpose post-processing)

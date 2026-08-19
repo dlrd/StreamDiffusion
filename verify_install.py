@@ -13,7 +13,7 @@ def test_import(name, import_func):
         print(f"  [OK] {name}")
         return True
     except Exception as e:
-        print(f"  [ERREUR] {name}: {e}")
+        print(f"  [ERROR] {name}: {e}")
         return False
 
 
@@ -30,15 +30,15 @@ def main():
     try:
         import torch
         if torch.cuda.is_available():
-            print(f"  [OK] CUDA disponible: {torch.cuda.get_device_name(0)}")
+            print(f"  [OK] CUDA available: {torch.cuda.get_device_name(0)}")
             print(f"  [OK] CUDA version: {torch.version.cuda}")
             vram = torch.cuda.get_device_properties(0).total_memory / 1024**3
-            print(f"  [OK] VRAM totale: {vram:.1f} GB")
+            print(f"  [OK] Total VRAM: {vram:.1f} GB")
         else:
-            print("  [ERREUR] CUDA non disponible!")
+            print("  [ERROR] CUDA not available!")
             all_ok = False
     except ImportError:
-        print("  [ERREUR] PyTorch non installe!")
+        print("  [ERROR] PyTorch not installed!")
         all_ok = False
     print()
 
@@ -69,14 +69,14 @@ def main():
     print()
 
     # Test 7: tokenizers
-    print("[7/8] Test tokenizers...")
+    print("[7/7] Test tokenizers...")
     all_ok &= test_import("tokenizers", lambda: __import__("tokenizers"))
     print()
 
-    # Test 8: InsightFace (IP-Adapter FaceID)
-    print("[8/8] Test insightface (FaceID)...")
-    all_ok &= test_import("insightface", lambda: __import__("insightface"))
-    print()
+    # insightface (IP-Adapter FaceID) is intentionally not installed by
+    # install.bat (feature unused) and not required for the rest of the
+    # package to work — ip_adapter_processor.py degrades gracefully
+    # (try/except) if it's missing. Not tested here.
 
     print("=" * 70)
     if all_ok:

@@ -76,7 +76,7 @@ def copy_cuda_tools():
 
     cuda_bin = find_cuda_bin()
     if not cuda_bin:
-        print("[ERREUR] CUDA Toolkit not found!")
+        print("[ERROR] CUDA Toolkit not found!")
         print("   Please install CUDA Toolkit 12.1+ from:")
         print("   https://developer.nvidia.com/cuda-downloads")
         return False
@@ -86,11 +86,11 @@ def copy_cuda_tools():
     nvdisasm_src = os.path.join(cuda_bin, "nvdisasm.exe")
 
     if not os.path.exists(cuobjdump_src):
-        print(f"[ERREUR] cuobjdump.exe not found in {cuda_bin}")
+        print(f"[ERROR] cuobjdump.exe not found in {cuda_bin}")
         return False
 
     if not os.path.exists(nvdisasm_src):
-        print(f"[ERREUR] nvdisasm.exe not found in {cuda_bin}")
+        print(f"[ERROR] nvdisasm.exe not found in {cuda_bin}")
         return False
 
     print(f"[OK] Found cuobjdump.exe")
@@ -101,7 +101,7 @@ def copy_cuda_tools():
     triton_bin = venv_root / "Lib" / "site-packages" / "triton" / "backends" / "nvidia" / "bin"
 
     if not triton_bin.exists():
-        print(f"[ERREUR] Triton directory not found: {triton_bin}")
+        print(f"[ERROR] Triton directory not found: {triton_bin}")
         print("   Please install requirements.txt first:")
         print("   pip install -r requirements.txt")
         return False
@@ -121,7 +121,7 @@ def copy_cuda_tools():
 
         return True
     except Exception as e:
-        print(f"[ERREUR] copying files: {e}")
+        print(f"[ERROR] copying files: {e}")
         return False
 
 
@@ -134,8 +134,8 @@ def download_python_headers(dest_dir):
     version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     url = f"https://www.nuget.org/api/v2/package/python/{version}"
 
-    print(f"[INFO] Headers non disponibles localement")
-    print(f"[INFO] Telechargement depuis NuGet (Python {version})...")
+    print(f"[INFO] Headers not available locally")
+    print(f"[INFO] Downloading from NuGet (Python {version})...")
 
     tmp_path = os.path.join(tempfile.gettempdir(), f"python-{version}.nupkg")
     try:
@@ -156,14 +156,14 @@ def download_python_headers(dest_dir):
         os.unlink(tmp_path)
 
         if extracted > 0:
-            print(f"[OK] {extracted} headers telecharges dans {dest_dir}")
+            print(f"[OK] {extracted} headers downloaded to {dest_dir}")
             return True
         else:
-            print(f"[ERREUR] Aucun header trouve dans le package NuGet")
+            print(f"[ERROR] No header found in the NuGet package")
             return False
 
     except Exception as e:
-        print(f"[ERREUR] Telechargement echoue: {e}")
+        print(f"[ERROR] Download failed: {e}")
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
         return False
@@ -194,10 +194,10 @@ def copy_python_headers():
             print(f"[OK] Copied Python headers -> {venv_include}")
             return True
         except Exception as e:
-            print(f"[ERREUR] copying headers: {e}")
+            print(f"[ERROR] copying headers: {e}")
 
     # Local headers not available (embedded Python) -> download from NuGet
-    print(f"[INFO] Python embarque detecte (pas de headers locaux)")
+    print(f"[INFO] Embedded Python detected (no local headers)")
     try:
         if venv_include.exists():
             shutil.rmtree(venv_include)
@@ -208,12 +208,12 @@ def copy_python_headers():
             if (venv_include / "Python.h").exists():
                 print(f"[OK] Verified Python.h")
             else:
-                print(f"[ATTENTION] Python.h not found after download")
+                print(f"[WARNING] Python.h not found after download")
                 return False
             return True
         return False
     except Exception as e:
-        print(f"[ERREUR] installing headers: {e}")
+        print(f"[ERROR] installing headers: {e}")
         return False
 
 
@@ -233,13 +233,13 @@ def verify_setup():
     if cuobjdump.exists():
         print(f"[OK] cuobjdump.exe present in Triton")
     else:
-        print(f"[ERREUR] cuobjdump.exe NOT found in Triton")
+        print(f"[ERROR] cuobjdump.exe NOT found in Triton")
         success = False
 
     if nvdisasm.exists():
         print(f"[OK] nvdisasm.exe present in Triton")
     else:
-        print(f"[ERREUR] nvdisasm.exe NOT found in Triton")
+        print(f"[ERROR] nvdisasm.exe NOT found in Triton")
         success = False
 
     # Check Python headers
@@ -249,7 +249,7 @@ def verify_setup():
     if python_h.exists():
         print(f"[OK] Python.h present in venv")
     else:
-        print(f"[ATTENTION] Python.h NOT found (torch.compile() may not work)")
+        print(f"[WARNING] Python.h NOT found (torch.compile() may not work)")
 
     return success
 
@@ -281,14 +281,14 @@ def main():
         print("[OK] CUDA tools successfully installed")
         print("  -> Triton warnings will no longer appear")
     else:
-        print("[ERREUR] CUDA tools installation failed")
+        print("[ERROR] CUDA tools installation failed")
         print("  -> You may see Triton warnings during execution")
 
     if headers_success:
         print("[OK] Python headers successfully installed")
         print("  -> torch.compile() will work in non-TensorRT mode")
     else:
-        print("[ATTENTION] Python headers not installed")
+        print("[WARNING] Python headers not installed")
         print("  -> torch.compile() may fail, but TensorRT will work fine")
 
     print("\n" + "="*60)

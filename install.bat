@@ -32,10 +32,10 @@ echo ===========================================================================
 echo.
 
 REM ============================================================================
-REM Etape 0: Preliminary checks
+REM Step 0: Preliminary checks
 REM ============================================================================
 
-echo [Etape 0/4] Checking prerequisite...
+echo [Step 0/4] Checking prerequisite...
 echo.
 
 REM Use Python 3.11.9 provided by Smode (same as StartStreamDiffusion.bat)
@@ -44,7 +44,7 @@ set "PYTHON_EXE=%CD%\..\python-3_11_9\python.exe"
 if not exist "%PYTHON_EXE%" (
     color 0C
     call :write_status failed 0 4 "Python 3.11.9 not found"
-    echo [ERREUR] Python 3.11.9 not found:
+    echo [ERROR] Python 3.11.9 not found:
     echo    %PYTHON_EXE%
     echo.
     echo Make sure Smode Compose / Live is installed and this package
@@ -76,7 +76,7 @@ if "%CUDA_FOUND%"=="0" (
         echo [INFO] Note: a restart may be necessary for CUDA_PATH to be active.
     ) else (
         color 0E
-        echo [ATTENTION] Automatic installation of CUDA Toolkit failed.
+        echo [WARNING] Automatic installation of CUDA Toolkit failed.
         echo    Please install it manually: https://developer.nvidia.com/cuda-toolkit-archive
         echo    The installation will continue, but torch.compile^(^) will not work.
         echo.
@@ -90,7 +90,7 @@ call :write_status installing 1 4 "Creating Python virtual environment"
 
 echo.
 echo ============================================================================
-echo [Etape 1/4] Creation of the Python virtual environment
+echo [Step 1/4] Creation of the Python virtual environment
 echo ============================================================================
 echo.
 
@@ -113,7 +113,7 @@ echo [INFO] Creation of the virtual environment in .venv...
 if %errorlevel% neq 0 (
     color 0C
     call :write_status failed 1 4 "Virtual environment creation failed"
-    echo [ERREUR] Impossible to create the virtual environment.
+    echo [ERROR] Impossible to create the virtual environment.
     echo.
     pause
     exit /b 1
@@ -128,18 +128,18 @@ call .venv\Scripts\activate.bat
 if %errorlevel% neq 0 (
     color 0C
     call :write_status failed 1 4 "Virtual environment activation failed"
-    echo [ERREUR] Impossible to activate the virtual environment.
+    echo [ERROR] Impossible to activate the virtual environment.
     echo.
     pause
     exit /b 1
 )
 echo [OK] Virtual environment activated.
 
-REM Mettre a jour pip (apres activation, python = venv Python 3.11.9)
+REM Update pip (after activation, python = venv Python 3.11.9)
 echo.
-echo [INFO] Mise a jour de pip...
+echo [INFO] Updating pip...
 python -m pip install --upgrade pip --quiet
-echo [OK] pip mis a jour.
+echo [OK] pip updated.
 
 call :write_status installing 2 4 "Installing dependencies from requirements.txt"
 
@@ -152,7 +152,7 @@ echo.
 if not exist "requirements.txt" (
     color 0C
     call :write_status failed 2 4 "requirements.txt not found"
-    echo [ERREUR] The requirements.txt file is not found.
+    echo [ERROR] The requirements.txt file is not found.
     echo Make sure you are in the correct directory.
     echo.
     pause
@@ -180,7 +180,7 @@ if %errorlevel% neq 0 (
     color 0C
     call :write_status failed 2 4 "Dependency installation failed - pip install -r requirements.txt"
     echo.
-    echo [ERREUR] Dependencies installation failed.
+    echo [ERROR] Dependencies installation failed.
     echo.
     pause
     exit /b 1
@@ -188,36 +188,6 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [OK] All dependencies installed successfully.
-
-REM Installer easy-dwpose separement (conflit artificiel huggingface_hub<0.25, API inchangee)
-echo.
-echo [INFO] Installation of easy-dwpose (--no-deps)...
-python -m pip install easy-dwpose==1.0.2 --no-deps --quiet
-echo [OK] easy-dwpose installed.
-
-REM Installer insightface depuis wheel pre-compile Windows (evite besoin de MSVC)
-REM Requis pour IP-Adapter FaceID. Incompatible avec numpy 2.x.
-echo.
-echo [INFO] Installation of insightface (IP-Adapter FaceID)...
-python -m pip install "https://github.com/Gourieff/Assets/raw/main/Insightface/insightface-0.7.3-cp311-cp311-win_amd64.whl" --quiet
-REM Downgrade numpy pour compatibilite insightface (scipy/opencv restent compatibles)
-python -m pip install "numpy==1.26.4" --quiet
-echo [OK] insightface installed (numpy 1.26.4 for compatibility).
-
-REM Verifier que PyTorch et CUDA fonctionnent
-echo.
-echo [INFO] Verification of PyTorch and CUDA...
-python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"N/A\"}')"
-
-if %errorlevel% neq 0 (
-    color 0E
-    echo.
-    echo [ATTENTION] PyTorch or CUDA does not seem to be working correctly.
-    echo Verify your CUDA installation and NVIDIA drivers.
-    echo [INFO] Installation will continue...
-) else (
-    echo [OK] PyTorch and CUDA are working correctly.
-)
 
 call :write_status installing 3 4 "Configuring CUDA binaries and Python headers"
 
@@ -229,6 +199,8 @@ echo.
 
 echo [INFO] Configuration for torch.compile() and Triton...
 echo [INFO] This step copies the necessary CUDA tools and Python headers.
+echo [INFO] Done now (before insightface) so pip can compile native extensions
+echo [INFO] such as stringzilla against Python.h if no prebuilt wheel exists.
 echo.
 
 python setup_venv.py
@@ -236,11 +208,46 @@ python setup_venv.py
 if %errorlevel% neq 0 (
     color 0E
     echo.
-    echo [ATTENTION] The configuration of the binaries has failed partially.
+    echo [WARNING] The configuration of the binaries has failed partially.
     echo StreamDiffusion will work anyway, but torch.compile^(^) might not work.
     echo [INFO] Installation will continue...
 ) else (
-    echo [OK] Binaires CUDA et headers Python configures.
+    echo [OK] CUDA binaries and Python headers configured.
+)
+
+REM Install easy-dwpose separately (artificial conflict with huggingface_hub<0.25, API unchanged)
+echo.
+echo [INFO] Installation of easy-dwpose (--no-deps)...
+python -m pip install easy-dwpose==1.0.2 --no-deps --quiet
+if %errorlevel% neq 0 (
+    color 0E
+    echo [WARNING] easy-dwpose installation failed. Pose detection may not work.
+    echo [INFO] Installation will continue...
+) else (
+    echo [OK] easy-dwpose installed.
+)
+
+REM insightface (IP-Adapter FaceID) intentionally not installed: feature is
+REM unused, and one of its transitive dependencies (stringzilla) needs a
+REM source build that fails if the Python NuGet headers aren't in place yet.
+REM The FaceID code (ip_adapter_processor.py) stays in place but inert: it
+REM degrades gracefully (try/except) if insightface is missing. To re-enable
+REM it, reinstall from
+REM https://github.com/Gourieff/Assets/raw/main/Insightface/insightface-0.7.3-cp311-cp311-win_amd64.whl
+
+REM Verify that PyTorch and CUDA are working
+echo.
+echo [INFO] Verification of PyTorch and CUDA...
+python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda}'); print(f'GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"N/A\"}')"
+
+if %errorlevel% neq 0 (
+    color 0E
+    echo.
+    echo [WARNING] PyTorch or CUDA does not seem to be working correctly.
+    echo Verify your CUDA installation and NVIDIA drivers.
+    echo [INFO] Installation will continue...
+) else (
+    echo [OK] PyTorch and CUDA are working correctly.
 )
 
 call :write_status installing 4 4 "Verifying installation"
@@ -260,7 +267,7 @@ if %errorlevel% neq 0 (
     color 0C
     call :write_status failed 4 4 "Installation verification failed"
     echo.
-    echo [ERREUR] The installation test has failed.
+    echo [ERROR] The installation test has failed.
     echo Verify the error messages above.
     echo.
     pause
