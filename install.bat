@@ -44,13 +44,12 @@ set "PYTHON_EXE=%CD%\..\python-3_11_9\python.exe"
 if not exist "%PYTHON_EXE%" (
     color 0C
     call :write_status failed 0 4 "Python 3.11.9 not found"
-    echo [ERREUR] Python 3.11.9 not found:
+    echo [ERROR] Python 3.11.9 not found:
     echo    %PYTHON_EXE%
     echo.
     echo Make sure Smode Compose / Live is installed and this package
     echo is located in the Packages/ folder of Smode.
     echo.
-    pause
     exit /b 1
 )
 
@@ -113,9 +112,8 @@ echo [INFO] Creation of the virtual environment in .venv...
 if %errorlevel% neq 0 (
     color 0C
     call :write_status failed 1 4 "Virtual environment creation failed"
-    echo [ERREUR] Impossible to create the virtual environment.
+    echo [ERROR] Impossible to create the virtual environment.
     echo.
-    pause
     exit /b 1
 )
 echo [OK] Virtual environment created successfully (Python %PYTHON_VERSION%).
@@ -128,16 +126,15 @@ call .venv\Scripts\activate.bat
 if %errorlevel% neq 0 (
     color 0C
     call :write_status failed 1 4 "Virtual environment activation failed"
-    echo [ERREUR] Impossible to activate the virtual environment.
+    echo [ERROR] Impossible to activate the virtual environment.
     echo.
-    pause
     exit /b 1
 )
 echo [OK] Virtual environment activated.
 
-REM Mettre a jour pip (apres activation, python = venv Python 3.11.9)
+REM Pip update (apres activation, python = venv Python 3.11.9)
 echo.
-echo [INFO] Mise a jour de pip...
+echo [INFO] pip update...
 python -m pip install --upgrade pip --quiet
 echo [OK] pip mis a jour.
 
@@ -152,10 +149,9 @@ echo.
 if not exist "requirements.txt" (
     color 0C
     call :write_status failed 2 4 "requirements.txt not found"
-    echo [ERREUR] The requirements.txt file is not found.
+    echo [ERROR] The requirements.txt file is not found.
     echo Make sure you are in the correct directory.
     echo.
-    pause
     exit /b 1
 )
 
@@ -180,9 +176,8 @@ if %errorlevel% neq 0 (
     color 0C
     call :write_status failed 2 4 "Dependency installation failed - pip install -r requirements.txt"
     echo.
-    echo [ERREUR] Dependencies installation failed.
+    echo [ERROR] Dependencies installation failed.
     echo.
-    pause
     exit /b 1
 )
 
@@ -260,10 +255,9 @@ if %errorlevel% neq 0 (
     color 0C
     call :write_status failed 4 4 "Installation verification failed"
     echo.
-    echo [ERREUR] The installation test has failed.
+    echo [ERROR] The installation test has failed.
     echo Verify the error messages above.
     echo.
-    pause
     exit /b 1
 )
 
