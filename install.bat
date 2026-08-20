@@ -50,7 +50,6 @@ if not exist "%PYTHON_EXE%" (
     echo Make sure Smode Compose / Live is installed and this package
     echo is located in the Packages/ folder of Smode.
     echo.
-    pause
     exit /b 1
 )
 
@@ -115,7 +114,6 @@ if %errorlevel% neq 0 (
     call :write_status failed 1 4 "Virtual environment creation failed"
     echo [ERROR] Impossible to create the virtual environment.
     echo.
-    pause
     exit /b 1
 )
 echo [OK] Virtual environment created successfully (Python %PYTHON_VERSION%).
@@ -130,7 +128,6 @@ if %errorlevel% neq 0 (
     call :write_status failed 1 4 "Virtual environment activation failed"
     echo [ERROR] Impossible to activate the virtual environment.
     echo.
-    pause
     exit /b 1
 )
 echo [OK] Virtual environment activated.
@@ -155,7 +152,6 @@ if not exist "requirements.txt" (
     echo [ERROR] The requirements.txt file is not found.
     echo Make sure you are in the correct directory.
     echo.
-    pause
     exit /b 1
 )
 
@@ -182,7 +178,6 @@ if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Dependencies installation failed.
     echo.
-    pause
     exit /b 1
 )
 
@@ -268,7 +263,6 @@ if %errorlevel% neq 0 (
     echo [ERROR] The installation test has failed.
     echo Verify the error messages above.
     echo.
-    pause
     exit /b 1
 )
 
