@@ -50,7 +50,7 @@ if not exist "%PYTHON_EXE%" (
     echo Make sure Smode Compose / Live is installed and this package
     echo is located in the Packages/ folder of Smode.
     echo.
-    exit /b 1
+    exit 1
 )
 
 REM Display Python version
@@ -114,7 +114,7 @@ if %errorlevel% neq 0 (
     call :write_status failed 1 4 "Virtual environment creation failed"
     echo [ERROR] Impossible to create the virtual environment.
     echo.
-    exit /b 1
+    exit 1
 )
 echo [OK] Virtual environment created successfully (Python %PYTHON_VERSION%).
 
@@ -128,7 +128,7 @@ if %errorlevel% neq 0 (
     call :write_status failed 1 4 "Virtual environment activation failed"
     echo [ERROR] Impossible to activate the virtual environment.
     echo.
-    exit /b 1
+    exit 1
 )
 echo [OK] Virtual environment activated.
 
@@ -152,7 +152,7 @@ if not exist "requirements.txt" (
     echo [ERROR] The requirements.txt file is not found.
     echo Make sure you are in the correct directory.
     echo.
-    exit /b 1
+    exit 1
 )
 
 echo [INFO] Installation of all dependencies from requirements.txt...
@@ -178,7 +178,7 @@ if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Dependencies installation failed.
     echo.
-    exit /b 1
+    exit 1
 )
 
 echo.
@@ -263,7 +263,7 @@ if %errorlevel% neq 0 (
     echo [ERROR] The installation test has failed.
     echo Verify the error messages above.
     echo.
-    exit /b 1
+    exit 1
 )
 
 call :write_status success 4 4 "Installation completed successfully"
@@ -296,7 +296,7 @@ color 0A
 echo.
 
 endlocal
-exit /b 0
+exit 0
 
 REM ============================================================================
 REM Helper: write install_status.json for Smode Engine to poll.
