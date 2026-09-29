@@ -1,0 +1,3 @@
+# Windows batch files are stored with CRLF and never converted, so every download (git, zip, raw) runs them as written
+*.bat -text
+*.cmd -text
