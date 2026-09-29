@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from ..base import BasePreprocessor
+from utils.hub import local_first
 
 # processors/ → preprocessors/ → package root.
 PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -213,11 +214,11 @@ class OpenPoseProcessor(BasePreprocessor):
 
             logging.info("Loading DWPose preprocessor (YOLOX-S + DWPose-LL-384, GPU-accelerated)...")
 
-            model_det_path = hf_hub_download(
+            model_det_path = local_first(hf_hub_download,
                 "hr16/yolox-onnx", "yolox_s.onnx",
                 local_dir=str(PACKAGE_DIR / "checkpoints")
             )
-            model_pose_path = hf_hub_download(
+            model_pose_path = local_first(hf_hub_download,
                 "hr16/UnJIT-DWPose", "dw-ll_ucoco_384_fp16.onnx",
                 local_dir=str(PACKAGE_DIR / "checkpoints")
             )

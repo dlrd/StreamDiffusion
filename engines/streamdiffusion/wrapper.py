@@ -13,6 +13,7 @@ from PIL import Image
 
 from pipeline import StreamDiffusion
 from .base_wrapper import BaseStreamDiffusionWrapper, PACKAGE_DIR, lora_signature
+from utils.hub import local_first
 
 
 def _compute_trt_unet_batch_size(t_index_list, frame_buffer_size, cfg_type, use_denoising_batch):
@@ -79,16 +80,16 @@ def _build_stub_pipe_sd15(model_id_or_path, cache_dir, device, dtype):
     engines are already on disk.
     """
     from transformers import CLIPTextModel, CLIPTokenizer
-    tokenizer = CLIPTokenizer.from_pretrained(
+    tokenizer = local_first(CLIPTokenizer.from_pretrained,
         model_id_or_path, subfolder="tokenizer",
         cache_dir=cache_dir if cache_dir else None,
     )
-    text_encoder = CLIPTextModel.from_pretrained(
+    text_encoder = local_first(CLIPTextModel.from_pretrained,
         model_id_or_path, subfolder="text_encoder",
         cache_dir=cache_dir if cache_dir else None,
         torch_dtype=dtype,
     ).to(device)
-    scheduler = LCMScheduler.from_pretrained(
+    scheduler = local_first(LCMScheduler.from_pretrained,
         model_id_or_path, subfolder="scheduler",
         cache_dir=cache_dir if cache_dir else None,
     )
@@ -119,7 +120,7 @@ class StreamDiffusionWrapper(BaseStreamDiffusionWrapper):
             self.stream.load_lcm_lora()
             self.stream.fuse_lora()
 
-        self.stream.vae = AutoencoderTiny.from_pretrained("madebyollin/taesd").to(
+        self.stream.vae = local_first(AutoencoderTiny.from_pretrained, "madebyollin/taesd").to(
             device=self.stream.pipe.device, dtype=self.stream.pipe.dtype
         )
 
@@ -219,7 +220,7 @@ class StreamDiffusionWrapper(BaseStreamDiffusionWrapper):
 
                         # TinyVAE provides a valid ``vae.config`` / ``.dtype`` for
                         # the TRT engine wrapper. Replaced immediately afterward.
-                        stream.vae = AutoencoderTiny.from_pretrained(
+                        stream.vae = local_first(AutoencoderTiny.from_pretrained,
                             vae_id if vae_id is not None else "madebyollin/taesd"
                         ).to(device=self.device, dtype=self.dtype)
 
@@ -241,11 +242,11 @@ class StreamDiffusionWrapper(BaseStreamDiffusionWrapper):
                         if self.use_safety_checker:
                             from transformers import CLIPFeatureExtractor
                             from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
-                            self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+                            self.safety_checker = local_first(StableDiffusionSafetyChecker.from_pretrained,
                                 "CompVis/stable-diffusion-safety-checker",
                                 torch_dtype=self.dtype,
                             ).to(self.device)
-                            self.feature_extractor = CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32")
+                            self.feature_extractor = local_first(CLIPFeatureExtractor.from_pretrained, "openai/clip-vit-base-patch32")
                             self.nsfw_fallback_img = Image.new("RGB", (512, 512), (0, 0, 0))
 
                         fast_path_taken = True
@@ -274,7 +275,7 @@ class StreamDiffusionWrapper(BaseStreamDiffusionWrapper):
 
         try:
             try:
-                pipe = StableDiffusionPipeline.from_pretrained(
+                pipe = local_first(StableDiffusionPipeline.from_pretrained,
                     model_id_or_path, torch_dtype=self.dtype,
                     cache_dir=cache_dir if cache_dir else None
                 ).to(device=self.device, dtype=self.dtype)
@@ -285,7 +286,7 @@ class StreamDiffusionWrapper(BaseStreamDiffusionWrapper):
                         cache_dir=cache_dir if cache_dir else None
                     ).to(device=self.device, dtype=self.dtype)
                 except Exception:
-                    pipe = StableDiffusionPipeline.from_single_file(
+                    pipe = local_first(StableDiffusionPipeline.from_single_file,
                         model_id_or_path, torch_dtype=self.dtype,
                         cache_dir=cache_dir if cache_dir else None
                     ).to(device=self.device)
@@ -343,22 +344,22 @@ class StreamDiffusionWrapper(BaseStreamDiffusionWrapper):
 
         if use_tiny_vae:
             if vae_id is not None:
-                stream.vae = AutoencoderTiny.from_pretrained(vae_id).to(
+                stream.vae = local_first(AutoencoderTiny.from_pretrained, vae_id).to(
                     device=pipe.device, dtype=pipe.dtype
                 )
             else:
-                stream.vae = AutoencoderTiny.from_pretrained("madebyollin/taesd").to(
+                stream.vae = local_first(AutoencoderTiny.from_pretrained, "madebyollin/taesd").to(
                     device=pipe.device, dtype=pipe.dtype
                 )
         elif is_hyper_model:
             if vae_id is not None:
                 from diffusers import AutoencoderKL
-                stream.vae = AutoencoderKL.from_pretrained(vae_id).to(
+                stream.vae = local_first(AutoencoderKL.from_pretrained, vae_id).to(
                     device=pipe.device, dtype=pipe.dtype
                 )
             elif "noVAE" in model_id_or_path or "novae" in model_id_or_path.lower():
                 from diffusers import AutoencoderKL
-                stream.vae = AutoencoderKL.from_pretrained(
+                stream.vae = local_first(AutoencoderKL.from_pretrained,
                     "stabilityai/sd-vae-ft-mse", torch_dtype=pipe.dtype
                 ).to(device=pipe.device)
 
@@ -416,11 +417,11 @@ class StreamDiffusionWrapper(BaseStreamDiffusionWrapper):
         if self.use_safety_checker:
             from transformers import CLIPFeatureExtractor
             from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
-            self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+            self.safety_checker = local_first(StableDiffusionSafetyChecker.from_pretrained,
                 "CompVis/stable-diffusion-safety-checker",
                 torch_dtype=self.dtype,
             ).to(pipe.device)
-            self.feature_extractor = CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32")
+            self.feature_extractor = local_first(CLIPFeatureExtractor.from_pretrained, "openai/clip-vit-base-patch32")
             self.nsfw_fallback_img = Image.new("RGB", (512, 512), (0, 0, 0))
 
         return stream

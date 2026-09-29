@@ -12,6 +12,7 @@ import torch
 from PIL import Image
 
 from pipeline.image_utils import postprocess_image
+from utils.hub import local_first
 
 # Package root — TRT engines and torch.compile caches live alongside the code.
 PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -204,7 +205,7 @@ class BaseStreamDiffusionWrapper(ABC):
             if plus_v2:
                 from transformers import CLIPVisionModelWithProjection
                 logging.info(f"[FaceID] Loading CLIP Vision encoder: {self.FACEID_CLIP_ENCODER}")
-                image_encoder = CLIPVisionModelWithProjection.from_pretrained(
+                image_encoder = local_first(CLIPVisionModelWithProjection.from_pretrained,
                     self.FACEID_CLIP_ENCODER,
                     torch_dtype=self.dtype,
                 ).to(self.device)
@@ -212,7 +213,7 @@ class BaseStreamDiffusionWrapper(ABC):
 
             # image_encoder_folder=None because the face embedding comes from
             # InsightFace, not a CLIP encoder inside the IP-Adapter repo.
-            pipe.load_ip_adapter(
+            local_first(pipe.load_ip_adapter,
                 model_repo,
                 subfolder=None,
                 weight_name=weight_name,
