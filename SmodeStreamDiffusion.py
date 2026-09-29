@@ -674,8 +674,7 @@ class App:
                     if getattr(self, '_streamv2v_active', False):
                         prev_prompt = getattr(self, '_streamv2v_last_prompt', None)
                         if prev_prompt != self.current_prompt:
-                            from pipeline.attention_processors import reset_attention_cache
-                            reset_attention_cache(self.stream.stream.unet)
+                            self._reset_v2v_caches()
                             self._streamv2v_last_prompt = self.current_prompt
                             logging.info("[StreamV2V] Attention cache reset (prompt changed)")
 
@@ -837,6 +836,14 @@ class App:
             send_message(self.socket, StreamCreationPacket(True))
         except Exception:
             pass
+
+    def _reset_v2v_caches(self) -> None:
+        """Zero the StreamV2V caches, on PyTorch and TensorRT UNets alike."""
+        from pipeline.attention_processors import reset_attention_cache
+        unet = self.stream.stream.unet
+        reset_attention_cache(unet)  # PyTorch UNet; no-op on a TensorRT engine
+        if hasattr(unet, "reset_v2v_cache"):
+            unet.reset_v2v_cache()
 
     def _process_frame(self, timings: dict) -> None:
         """Per-frame compute: input -> preprocess -> inference -> output -> signal."""

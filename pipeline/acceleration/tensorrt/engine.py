@@ -249,6 +249,12 @@ class UNet2DConditionModelEngine:
 
         return UNet2DConditionOutput(sample=noise_pred)
 
+    def reset_v2v_cache(self) -> None:
+        """Zero the StreamV2V kvo cache (reset_attention_cache only reaches PyTorch UNets)."""
+        if self._kvo_cache is not None:
+            for buf in self._kvo_cache:
+                buf.zero_()
+
     def to(self, *args, **kwargs):
         pass
 
