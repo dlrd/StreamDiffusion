@@ -96,6 +96,8 @@ class App:
             self.height = config.height
             self.input_tensors = None
             self.output_tensors = None
+            self._non_finite_frames = 0
+            self._non_finite_last_log = 0.0
             # Index 0 = last timestep with max noise (correct for 1-step distilled models).
             self.t_index_list = [0]
             self.mode = Mode.IMAGE_TO_IMAGE
@@ -837,6 +839,22 @@ class App:
         except Exception:
             pass
 
+    def _guard_output(self, x_output: Optional[torch.Tensor]) -> Optional[torch.Tensor]:
+        """Drop a NaN/Inf frame (Smode keeps the previous image) and reset the state it poisoned."""
+        if x_output is None or bool(torch.isfinite(x_output).all()):
+            return x_output
+        self._non_finite_frames += 1
+        now = time.time()
+        if now - self._non_finite_last_log >= 1.0:
+            self._non_finite_last_log = now
+            logging.warning(
+                f"[NaN guard] non-finite generation output ({self._non_finite_frames} "
+                f"frame(s) since start): generation state reset, previous image kept")
+        self.stream.stream.update_prompt(self.current_prompt)
+        self.stream.stream._prev_latent = None
+        self._reset_v2v_caches()
+        return None
+
     def _reset_v2v_caches(self) -> None:
         """Zero the StreamV2V caches, on PyTorch and TensorRT UNets alike."""
         from pipeline.attention_processors import reset_attention_cache
@@ -999,6 +1017,7 @@ class App:
             self.streamDiffusionToSmodeInterProcessEvent.signal()
             return
 
+        x_output = self._guard_output(x_output)
         if x_output is not None:
             x_output = x_output.squeeze(0) if x_output.shape[0] == 1 else x_output
 
